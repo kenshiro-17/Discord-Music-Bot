@@ -1,6 +1,5 @@
-import { Events, Message, Client } from 'discord.js';
-import { ExtendedClient } from '../types';
-import { logger, logError } from '../utils/logger';
+import { Events, Message } from 'discord.js';
+import { logError } from '../utils/logger';
 import { MUSIC_CHANNEL_NAME } from './guildCreate';
 
 export default {

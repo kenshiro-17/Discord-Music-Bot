@@ -13,12 +13,6 @@ const prefixes = [
     "Dhaivame... ",
 ];
 
-const suffixes = [
-    " ...ketto?",
-    " ...manasilayo?",
-    " ...Thankan chettante vaka.",
-    " ...ini mindaruthu.",
-];
 
 /**
  * Transforms a standard message into Thankan Chettan style

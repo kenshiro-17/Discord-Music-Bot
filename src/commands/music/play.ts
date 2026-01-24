@@ -175,11 +175,11 @@ export default {
         components: buttons,
       });
 
-      const embed = createSongAddedEmbed(song, addResult.position!);
+      const addedEmbed = createSongAddedEmbed(song, addResult.position!);
 
       await interaction.editReply({
         content: styleResponse(`Added to queue: ${song.title}`),
-        embeds: [embed],
+        embeds: [addedEmbed],
       });
     }
 

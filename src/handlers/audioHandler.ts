@@ -67,9 +67,11 @@ async function handleSongEnd(guildId: string): Promise<void> {
     // No more songs, stop playback
     logger.info('Queue finished', { guildId });
 
-    queue.textChannel
-      .send('Queue finished! Add more songs or I\'ll leave after 5 minutes of inactivity.')
-      .catch((error: Error) => logError(error, { context: 'Failed to send queue finished message' }));
+    if (queue && queue.textChannel) {
+      queue.textChannel
+        .send('Queue finished! Add more songs or I\'ll leave after 5 minutes of inactivity.')
+        .catch((error: Error) => logError(error, { context: 'Failed to send queue finished message' }));
+    }
 
     stopQueue(guildId);
     startInactivityTimer(guildId, 300);
@@ -87,6 +89,8 @@ async function createAudioResourceFromSong(song: Song, volume: number): Promise<
     let resource: AudioResource;
 
     // Create resource from YouTube URL
+    logger.info('Creating stream for song', { url: song.url, type: typeof song.url });
+
     if (!song.url || !play.yt_validate(song.url)) {
       throw new Error(`Invalid YouTube URL: ${song.url}`);
     }

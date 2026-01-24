@@ -5,6 +5,7 @@ import { validateMusicCommand } from '../../utils/validators';
 import { createNowPlayingEmbed, createErrorEmbed } from '../../utils/embedBuilder';
 import { createNowPlayingButtons } from '../../utils/buttonBuilder';
 import { ValidationError } from '../../utils/errorHandler';
+import { styleResponse } from '../../utils/persona';
 
 export default {
   data: new SlashCommandBuilder()
@@ -24,7 +25,7 @@ export default {
     const previousResult = previousSong(interaction.guildId!);
 
     if (!previousResult.success) {
-      const embed = createErrorEmbed(previousResult.error || 'Cannot go back further');
+      const embed = createErrorEmbed(styleResponse(previousResult.error || 'Cannot go back further', 'error'));
       await interaction.editReply({ embeds: [embed] });
       return;
     }
@@ -36,6 +37,7 @@ export default {
     const buttons = createNowPlayingButtons(!queue!.playing, queue!.loop);
 
     await interaction.editReply({
+      content: styleResponse('Going back to the previous song.'),
       embeds: [embed],
       components: buttons,
     });

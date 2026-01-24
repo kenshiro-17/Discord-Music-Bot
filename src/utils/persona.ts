@@ -11,30 +11,59 @@ const prefixes = [
     "Churuli ilottu vaa... ",
     "Thankan chettan parayunnu... ",
     "Dhaivame... ",
+    "Nee enthu thenga aada ee kaanikkunne? ",
+    "Vaa... avide chennittu samsarikkaam... ",
 ];
 
+const errorPrefixes = [
+    "Ayye... ",
+    "Podey... ",
+    "Nee theerenu... ",
+    "Enthuvaadey ithu? ",
+];
 
 /**
  * Transforms a standard message into Thankan Chettan style
  */
 export function styleResponse(message: string, type: 'success' | 'error' | 'info' = 'info'): string {
-    // Map common phrases to character specific dialogue
-    // Note: Using Manglish (Malayalam in English script) for wider readability/impact
-
+    // Exact phrase mapping for specific events
     if (message.includes("Playing")) {
-        return `🎵 **Thankan Chettan's Vibe:**\nPlaying ${message.replace('Playing', '').trim()}... Ketto?`;
+        const songName = message.replace('Playing', '').trim();
+        return `🎵 **Thankan Chettan's Vibe:**\nPaattu: **${songName}**\n\n*Ketto... ishtapettillenkilum mindaathirunno.*`;
     }
 
     if (message.includes("Added to queue")) {
-        return `✅ **Queue ilittu:**\n${message.replace('Added to queue', '').trim()}... Ini onnum parayanda.`;
+        const songName = message.replace('Added to queue:', '').trim();
+        return `✅ **Queue ilittu:**\n**${songName}**\n\n*Samayam aakumbol kelpikkum. Thithappan varatte.*`;
     }
 
     if (message.includes("Joined")) {
-        return `🔊 **Vannu:**\nNjan voice channel il kerittundu. Paattu idu... allel...`;
+        return `🔊 **Vannu:**\nNjan voice channel il kerittundu. Paattu idu... allel njan angottu varum.`;
+    }
+
+    if (message.includes("Left")) {
+        return `👋 **Poyi:**\nNjan pokuva. Ini avide kidannu bahalam vekkathe.`;
+    }
+
+    if (message.includes("Queue finished")) {
+        return `⏹️ **Theernu:**\nQueue theernu. Ini onnumilla. Veettil po.`;
+    }
+
+    if (message.includes("Paused")) {
+        return `⏸️ **Nirthi:**\nPaattu nirthi. Ini entha?`;
+    }
+
+    if (message.includes("Resumed")) {
+        return `▶️ **Thudangi:**\nVeendum thudangi. Mindaathirunnu kelkku.`;
+    }
+
+    if (message.includes("Skipped")) {
+        return `⏭️ **Maatti:**\nAa paattu maatti. Aduthathu varatte.`;
     }
 
     if (type === 'error') {
-        return `⚠️ **Ayye...**\n${message}\nNee enthu paniya kaniche?`;
+        const prefix = errorPrefixes[Math.floor(Math.random() * errorPrefixes.length)];
+        return `⚠️ **Prashnam:**\n${prefix}\n${message}\n\n*Nee enthu paniya kaniche?*`;
     }
 
     // Fallback for generic messages
@@ -49,8 +78,14 @@ export function getThankanQuote(): string {
     const quotes = [
         "Thankan chettante andi!",
         "Ividuthe niyamam Thankan chettan aanu.",
-        "Nee ethra valiya kombanaayaalum...",
+        "Nee ethra valiya kombanaayaalum... Thankan chettante munnil onnumalla.",
         "Churuli... ithu vere lokam aanu.",
+        "Nee aara... Joy-o?",
+        "Avide nikkada... njan varunnu.",
+        "Eda... nee enthaada nokkunne?",
+        "Sathyathil aara nee?",
+        "Vazhi thetti vannathaano?",
     ];
     return quotes[Math.floor(Math.random() * quotes.length)];
 }
+

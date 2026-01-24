@@ -4,6 +4,7 @@ import { leaveVoiceChannel } from '../../handlers/voiceManager';
 import { validateMusicCommand } from '../../utils/validators';
 import { createSuccessEmbed } from '../../utils/embedBuilder';
 import { ValidationError } from '../../utils/errorHandler';
+import { styleResponse } from '../../utils/persona';
 
 export default {
   data: new SlashCommandBuilder()
@@ -21,7 +22,7 @@ export default {
     stop(interaction.guildId!);
     leaveVoiceChannel(interaction.guildId!);
 
-    const embed = createSuccessEmbed('Stopped playback and left the voice channel');
+    const embed = createSuccessEmbed(styleResponse('Stopped playback and left the voice channel.'));
     await interaction.reply({ embeds: [embed] });
   },
 };

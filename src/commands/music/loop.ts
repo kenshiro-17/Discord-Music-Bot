@@ -4,6 +4,7 @@ import { LoopMode } from '../../types';
 import { validateMusicCommand } from '../../utils/validators';
 import { createSuccessEmbed } from '../../utils/embedBuilder';
 import { ValidationError } from '../../utils/errorHandler';
+import { styleResponse } from '../../utils/persona';
 
 export default {
   data: new SlashCommandBuilder()
@@ -37,7 +38,7 @@ export default {
     }
 
     const modeText = mode === 'off' ? 'disabled' : mode === 'song' ? 'current song' : 'entire queue';
-    const embed = createSuccessEmbed(`Loop mode set to: ${modeText}`);
+    const embed = createSuccessEmbed(styleResponse(`Loop mode set to: ${modeText}`));
 
     await interaction.reply({ embeds: [embed] });
   },

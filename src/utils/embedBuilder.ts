@@ -1,5 +1,6 @@
 import { EmbedBuilder } from 'discord.js';
 import { Song, ServerQueue, YouTubeSearchResult } from '../types';
+import { getThankanQuote } from './persona';
 
 /**
  * Color constants for embeds
@@ -54,7 +55,7 @@ export function truncate(text: string, maxLength: number): string {
 export function createSongAddedEmbed(song: Song, position: number): EmbedBuilder {
   const embed = new EmbedBuilder()
     .setColor(Colors.SUCCESS)
-    .setTitle('Added to Queue')
+    .setTitle('✅ Queue ilittu')
     .setDescription(`**[${truncate(song.title, 80)}](${song.url})**`)
     .setThumbnail(song.thumbnail)
     .addFields(
@@ -62,7 +63,7 @@ export function createSongAddedEmbed(song: Song, position: number): EmbedBuilder
       { name: 'Position', value: `#${position}`, inline: true },
       { name: 'Source', value: song.source.toUpperCase(), inline: true }
     )
-    .setFooter({ text: `Requested by ${song.requestedBy.username}` })
+    .setFooter({ text: `Requested by ${song.requestedBy.username} | ${getThankanQuote()}` })
     .setTimestamp();
 
   return embed;
@@ -77,7 +78,7 @@ export function createNowPlayingEmbed(song: Song, queue: ServerQueue, currentTim
 
   const embed = new EmbedBuilder()
     .setColor(Colors.PRIMARY)
-    .setTitle('Now Playing 🎵')
+    .setTitle('🎵 Thankan Chettan Vibe')
     .setDescription(`**[${truncate(song.title, 80)}](${song.url})**`)
     .setThumbnail(song.thumbnail)
     .addFields(
@@ -86,7 +87,7 @@ export function createNowPlayingEmbed(song: Song, queue: ServerQueue, currentTim
       { name: 'Loop', value: queue.loop === 'off' ? 'Off' : queue.loop === 'song' ? 'Song' : 'Queue', inline: true },
       { name: 'Progress', value: `${progressBar}\n${timeDisplay}`, inline: false }
     )
-    .setFooter({ text: `Requested by ${song.requestedBy.username} | ${queue.songs.length} song(s) in queue` })
+    .setFooter({ text: `Requested by ${song.requestedBy.username} | ${getThankanQuote()}` })
     .setTimestamp();
 
   return embed;
@@ -104,24 +105,24 @@ export function createQueueEmbed(queue: ServerQueue, page: number = 1): EmbedBui
   const currentSong = queue.songs[queue.currentIndex];
   const upcomingSongs = queue.songs.slice(start + 1, end + 1);
 
-  let description = `**Now Playing:**\n`;
+  let description = `**Ippo Kalikkunnu:**\n`;
   description += `🎵 [${truncate(currentSong.title, 60)}](${currentSong.url}) - \`${formatDuration(currentSong.duration)}\`\n\n`;
 
   if (upcomingSongs.length > 0) {
-    description += `**Up Next:**\n`;
+    description += `**Aduthu Varunnu:**\n`;
     upcomingSongs.forEach((song, index) => {
       const position = start + index + 2;
       description += `\`${position}.\` [${truncate(song.title, 50)}](${song.url}) - \`${formatDuration(song.duration)}\`\n`;
     });
   } else if (queue.songs.length === 1) {
-    description += `*No more songs in queue*`;
+    description += `*Ini onnumilla... Veettil po.*`;
   }
 
   const embed = new EmbedBuilder()
     .setColor(Colors.PRIMARY)
-    .setTitle(`Queue for ${queue.voiceChannel.guild.name}`)
+    .setTitle(`📜 Thankan Chettan's Queue: ${queue.voiceChannel.guild.name}`)
     .setDescription(description)
-    .setFooter({ text: `Page ${page}/${totalPages} | ${queue.songs.length} total song(s) | Volume: ${queue.volume}% | Loop: ${queue.loop}` })
+    .setFooter({ text: `Page ${page}/${totalPages} | ${queue.songs.length} total song(s) | ${getThankanQuote()}` })
     .setTimestamp();
 
   return embed;
@@ -140,9 +141,9 @@ export function createSearchResultsEmbed(results: YouTubeSearchResult[], query: 
 
   const embed = new EmbedBuilder()
     .setColor(Colors.PRIMARY)
-    .setTitle('Search Results')
+    .setTitle('🔎 Kandu pidichu...')
     .setDescription(description)
-    .setFooter({ text: 'Select a song from the menu below' })
+    .setFooter({ text: 'Onnu vegam para... Thankan chettanu thirakkund.' })
     .setTimestamp();
 
   return embed;
@@ -154,7 +155,7 @@ export function createSearchResultsEmbed(results: YouTubeSearchResult[], query: 
 export function createSuccessEmbed(message: string, title: string = 'Success'): EmbedBuilder {
   return new EmbedBuilder()
     .setColor(Colors.SUCCESS)
-    .setTitle(title)
+    .setTitle(title === 'Success' ? '✅ Sheri...' : title)
     .setDescription(message)
     .setTimestamp();
 }
@@ -165,7 +166,7 @@ export function createSuccessEmbed(message: string, title: string = 'Success'): 
 export function createErrorEmbed(message: string, title: string = 'Error'): EmbedBuilder {
   return new EmbedBuilder()
     .setColor(Colors.ERROR)
-    .setTitle(title)
+    .setTitle(title === 'Error' ? '⚠️ Ayye...' : title)
     .setDescription(message)
     .setTimestamp();
 }
@@ -176,7 +177,7 @@ export function createErrorEmbed(message: string, title: string = 'Error'): Embe
 export function createWarningEmbed(message: string, title: string = 'Warning'): EmbedBuilder {
   return new EmbedBuilder()
     .setColor(Colors.WARNING)
-    .setTitle(title)
+    .setTitle(title === 'Warning' ? '⚠️ Oru karyam...' : title)
     .setDescription(message)
     .setTimestamp();
 }
@@ -187,11 +188,12 @@ export function createWarningEmbed(message: string, title: string = 'Warning'): 
 export function createPlaylistAddedEmbed(playlistName: string, songCount: number, source: string): EmbedBuilder {
   return new EmbedBuilder()
     .setColor(Colors.SUCCESS)
-    .setTitle('Playlist Added to Queue')
+    .setTitle('✅ Playlist Queue ilittu')
     .setDescription(`**${truncate(playlistName, 100)}**`)
     .addFields(
       { name: 'Songs Added', value: `${songCount}`, inline: true },
       { name: 'Source', value: source.toUpperCase(), inline: true }
     )
+    .setFooter({ text: getThankanQuote() })
     .setTimestamp();
 }

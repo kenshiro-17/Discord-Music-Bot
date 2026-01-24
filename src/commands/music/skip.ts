@@ -6,6 +6,7 @@ import { validateMusicCommand } from '../../utils/validators';
 import { createNowPlayingEmbed, createSuccessEmbed } from '../../utils/embedBuilder';
 import { createNowPlayingButtons } from '../../utils/buttonBuilder';
 import { ValidationError } from '../../utils/errorHandler';
+import { styleResponse } from '../../utils/persona';
 
 export default {
   data: new SlashCommandBuilder()
@@ -28,7 +29,7 @@ export default {
       stopQueue(interaction.guildId!);
       leaveVoiceChannel(interaction.guildId!);
 
-      const embed = createSuccessEmbed('Queue finished! No more songs to play.');
+      const embed = createSuccessEmbed(styleResponse('Queue finished! No more songs to play.'));
       await interaction.editReply({ embeds: [embed] });
     } else if (skipResult.nextSong) {
       await playSong(interaction.guildId!);
@@ -37,6 +38,7 @@ export default {
       const buttons = createNowPlayingButtons(!queue!.playing, queue!.loop);
 
       await interaction.editReply({
+        content: styleResponse('Skipped to the next song.'),
         embeds: [embed],
         components: buttons,
       });

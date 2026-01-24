@@ -25,6 +25,8 @@ export function createQueue(
     loop: 'off',
     audioPlayer: null,
     currentIndex: 0,
+    startTime: 0,
+    pausedTime: 0,
   };
 
   queues.set(voiceChannel.guild.id, queue);
@@ -341,6 +343,7 @@ export function pause(guildId: string): { success: boolean; error?: string } {
 
   queue.audioPlayer.pause();
   queue.playing = false;
+  queue.lastPauseTime = Date.now();
 
   logger.info('Playback paused', { guildId });
 
@@ -363,6 +366,11 @@ export function resume(guildId: string): { success: boolean; error?: string } {
 
   queue.audioPlayer.unpause();
   queue.playing = true;
+  
+  if (queue.lastPauseTime) {
+    queue.pausedTime = (queue.pausedTime || 0) + (Date.now() - queue.lastPauseTime);
+    queue.lastPauseTime = undefined;
+  }
 
   logger.info('Playback resumed', { guildId });
 

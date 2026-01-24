@@ -61,6 +61,12 @@ export interface ServerQueue {
   nowPlayingMessage?: Message;
   /** Interval for updating progress bar */
   progressInterval?: NodeJS.Timeout;
+  /** Timestamp when current song started */
+  startTime?: number;
+  /** Total time spent paused in ms */
+  pausedTime?: number;
+  /** Timestamp when last pause started */
+  lastPauseTime?: number;
 }
 
 /**

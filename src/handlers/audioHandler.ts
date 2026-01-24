@@ -191,6 +191,10 @@ export async function playSong(guildId: string): Promise<void> {
 
     // Play the resource
     queue.audioPlayer.play(resource);
+    
+    // Set start time for manual tracking
+    queue.startTime = Date.now();
+    queue.pausedTime = 0;
 
     logger.info('Playing song', {
       guildId,
@@ -202,36 +206,44 @@ export async function playSong(guildId: string): Promise<void> {
     if (queue.textChannel) {
         try {
             const embed = createNowPlayingEmbed(song, queue, 0);
-            const buttons = createNowPlayingButtons(false, queue.loop); // Spread if it was array, but here it expects components array in reply options?
-            // Wait, createNowPlayingButtons returns ActionRowBuilder[].
-            // textChannel.send({ components: ... }) expects ActionRowBuilder[] or APIActionRow[].
-            // So we pass buttons directly.
+            const buttons = createNowPlayingButtons(false, queue.loop);
             
             const message = await queue.textChannel.send({ embeds: [embed], components: buttons });
             queue.nowPlayingMessage = message;
 
-            // Start animation interval (10s)
-            queue.progressInterval = setInterval(async () => {
-                if (!queue || !queue.playing || !queue.audioPlayer) {
-                    if (queue && queue.progressInterval) clearInterval(queue.progressInterval);
+            // Start animation interval (5s)
+            const interval = setInterval(async () => {
+                // Re-fetch queue to ensure it still exists and is playing
+                const currentQueue = getQueue(guildId);
+                
+                if (!currentQueue || !currentQueue.playing || !currentQueue.audioPlayer) {
+                    clearInterval(interval);
                     return;
                 }
                 
-                // Calculate current time (playbackDuration is in ms)
-                const state = queue.audioPlayer.state;
+                // Calculate current time manually
                 let currentTime = 0;
-                if (state.status === AudioPlayerStatus.Playing && 'resource' in state) {
-                    currentTime = Math.floor((state.resource as AudioResource).playbackDuration / 1000);
+                if (currentQueue.startTime) {
+                    const now = Date.now();
+                    const currentPaused = !currentQueue.playing && currentQueue.lastPauseTime ? (now - currentQueue.lastPauseTime) : 0;
+                    currentTime = Math.floor((now - currentQueue.startTime - (currentQueue.pausedTime || 0) - currentPaused) / 1000);
                 }
                 
+                // Clamp time
+                if (currentTime < 0) currentTime = 0;
+                if (currentTime > song.duration) currentTime = song.duration;
+
                 try {
-                    const newEmbed = createNowPlayingEmbed(song, queue, currentTime);
-                    await message.edit({ embeds: [newEmbed] });
+                    const newEmbed = createNowPlayingEmbed(song, currentQueue, currentTime);
+                    const newButtons = createNowPlayingButtons(!currentQueue.playing, currentQueue.loop);
+                    await message.edit({ embeds: [newEmbed], components: newButtons });
                 } catch (error) {
                     // Stop updating if message deleted or rate limited
-                    if (queue && queue.progressInterval) clearInterval(queue.progressInterval);
+                    clearInterval(interval);
                 }
-            }, 10000);
+            }, 5000);
+            
+            queue.progressInterval = interval;
         } catch (msgError) {
             logError(msgError as Error, { context: 'Failed to send now playing message' });
         }

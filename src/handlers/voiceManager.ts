@@ -33,7 +33,17 @@ export async function joinVoiceChannelHandler(
 
     // Wait for connection to be ready
     try {
+      logger.info('Waiting for voice connection to become ready...', { guildId: channel.guild.id });
+      
+      connection.on('stateChange', (oldState, newState) => {
+        logger.debug(`Voice Connection State: ${oldState.status} -> ${newState.status}`, { 
+          guildId: channel.guild.id,
+          reason: (newState as any).reason || 'unknown'
+        });
+      });
+
       await entersState(connection, VoiceConnectionStatus.Ready, 30_000);
+      logger.info('Voice connection ready!', { guildId: channel.guild.id });
     } catch (error) {
       connection.destroy();
       throw new VoiceConnectionError('Failed to connect to voice channel within 30 seconds');

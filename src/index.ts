@@ -6,6 +6,15 @@ import { loadCommands } from './handlers/commandHandler';
 import { createHealthCheckServer, setStartTime } from './utils/healthCheck';
 import fs from 'fs';
 import path from 'path';
+import dns from 'dns';
+
+// Force IPv4 for DNS resolution to avoid issues with Discord Voice on dual-stack networks
+try {
+  dns.setDefaultResultOrder('ipv4first');
+  logger.info('DNS resolution set to prefer IPv4');
+} catch (error) {
+  logger.warn('Failed to set DNS result order', { error: (error as Error).message });
+}
 
 /**
  * Creates and configures the Discord client
@@ -140,6 +149,10 @@ async function start(): Promise<void> {
 
     // Create client
     const client = createClient();
+
+    // Client error logging
+    client.on('error', (error) => logError(error, { context: 'Discord Client Error' }));
+    client.on('warn', (message) => logger.warn('Discord Client Warning', { message }));
 
     // Setup error handlers
     setupErrorHandlers();

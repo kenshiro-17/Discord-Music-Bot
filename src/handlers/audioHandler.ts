@@ -98,6 +98,7 @@ async function createAudioResourceFromSong(song: Song, volume: number): Promise<
       '--no-playlist',
       '--no-warnings',
       '--buffer-size', '16K',
+      '--socket-timeout', '10',
       '--',
       song.url
     ], { stdio: ['ignore', 'pipe', 'pipe'] }); // Capture stderr

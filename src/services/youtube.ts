@@ -95,9 +95,10 @@ export async function getYouTubeInfo(url: string): Promise<Song | null> {
     const { stdout } = await execFileAsync('yt-dlp', [
       '--dump-json',
       '--no-warnings',
+      '--socket-timeout', '10',
       '--',
       url
-    ]);
+    ], { timeout: 30000 }); // 30s timeout
 
     const video = JSON.parse(stdout);
 
@@ -132,9 +133,10 @@ export async function getYouTubePlaylist(url: string, user: User): Promise<Song[
       '--flat-playlist',
       '--playlist-end', '100',
       '--no-warnings',
+      '--socket-timeout', '10',
       '--',
       url
-    ], { maxBuffer: 10 * 1024 * 1024 }); // 10MB buffer
+    ], { maxBuffer: 10 * 1024 * 1024, timeout: 30000 }); // 10MB buffer, 30s timeout
 
     const playlistData = JSON.parse(stdout);
 

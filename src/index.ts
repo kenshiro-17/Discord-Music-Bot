@@ -2,7 +2,7 @@ import { Client, GatewayIntentBits, Collection } from 'discord.js';
 import { ExtendedClient, SearchResultCache } from './types';
 import { config, getConfigSummary } from './config/config';
 import { logger, ensureLogsDirectory, logError } from './utils/logger';
-import { loadCommands } from './handlers/commandHandler';
+import { loadCommands, deployCommands } from './handlers/commandHandler';
 import { createHealthCheckServer, setStartTime } from './utils/healthCheck';
 import fs from 'fs';
 import path from 'path';
@@ -163,6 +163,13 @@ async function start(): Promise<void> {
     // Load commands and events
     await loadCommands(client);
     await loadEvents(client);
+
+    // Deploy commands automatically on startup
+    try {
+      await deployCommands();
+    } catch (error) {
+      logger.error('Failed to auto-deploy commands', { error: (error as Error).message });
+    }
 
     // Log voice dependency report for debugging
     const { generateDependencyReport, version } = await import('@discordjs/voice');

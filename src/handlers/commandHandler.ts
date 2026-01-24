@@ -79,16 +79,18 @@ export async function deployCommands(guildId?: string): Promise<void> {
 
   // Deploy commands
   const rest = new REST({ version: '10' }).setToken(config.token);
+  const targetGuildId = guildId || process.env.GUILD_ID;
 
   try {
     logger.info(`Started deploying ${commands.length} slash command(s)`);
+    commands.forEach(cmd => logger.debug(`Deploying command: ${cmd.name}`));
 
-    if (guildId) {
+    if (targetGuildId) {
       // Deploy to specific guild (faster for testing)
-      await rest.put(Routes.applicationGuildCommands(config.clientId, guildId), {
+      await rest.put(Routes.applicationGuildCommands(config.clientId, targetGuildId), {
         body: commands,
       });
-      logger.info(`Deployed commands to guild ${guildId}`);
+      logger.info(`Deployed commands to guild ${targetGuildId}`);
     } else {
       // Deploy globally
       await rest.put(Routes.applicationCommands(config.clientId), {

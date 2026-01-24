@@ -1,11 +1,11 @@
-import { Client, ActivityType } from 'discord.js';
+import { Client, ActivityType, Events } from 'discord.js';
 import { logger } from '../utils/logger';
 import { initializePlayDl } from '../services/youtube';
 
 
 
 export default {
-  name: 'ready',
+  name: Events.ClientReady,
   once: true,
   async execute(client: Client) {
     logger.info(`Bot logged in as ${client.user?.tag}`);

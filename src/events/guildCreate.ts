@@ -1,7 +1,10 @@
-import { Events, Guild, ChannelType, PermissionFlagsBits } from 'discord.js';
+import { Events, Guild, ChannelType, PermissionFlagsBits, TextChannel } from 'discord.js';
 import { logger, logError } from '../utils/logger';
+import { createSuccessEmbed } from '../utils/embedBuilder';
+import { styleResponse } from '../utils/persona';
 
-export const MUSIC_CHANNEL_NAME = 'music-requests';
+export const BOT_CHANNEL_NAMES = ['music-requests', 'music', 'songs', 'bot-commands', 'bots', 'commands'];
+export const DEFAULT_MUSIC_CHANNEL = 'music-requests';
 
 export default {
     name: Events.GuildCreate,
@@ -9,19 +12,31 @@ export default {
         logger.info(`Joined guild: ${guild.name} (${guild.id})`);
 
         try {
-            // Check if channel already exists
+            // Check if any suitable bot channel already exists
             const existingChannel = guild.channels.cache.find(
-                (channel) => channel.name === MUSIC_CHANNEL_NAME && channel.type === ChannelType.GuildText
+                (channel) => 
+                    channel.type === ChannelType.GuildText && 
+                    BOT_CHANNEL_NAMES.includes(channel.name.toLowerCase())
             );
 
-            if (existingChannel) {
-                logger.info(`Music channel already exists in ${guild.name}`);
+            if (existingChannel && existingChannel.isTextBased()) {
+                logger.info(`Found existing bot channel ${existingChannel.name} in ${guild.name}`);
+                
+                // Send welcome message to existing channel
+                const welcomeEmbed = createSuccessEmbed(
+                    styleResponse(
+                        `**Thankan Chettan Vannu!**\n\nI noticed you have a **#${existingChannel.name}** channel.\nI'll use this for music requests!\n\nJust type a song name or paste a link here.`,
+                        'success'
+                    )
+                ).setTitle('🎵 Ready to Play');
+
+                await (existingChannel as TextChannel).send({ embeds: [welcomeEmbed] });
                 return;
             }
 
-            // Create the channel
+            // Create the channel if none exists
             const channel = await guild.channels.create({
-                name: MUSIC_CHANNEL_NAME,
+                name: DEFAULT_MUSIC_CHANNEL,
                 type: ChannelType.GuildText,
                 topic: '🎵 Music requests channel. Type a song name or paste a link to play!',
                 permissionOverwrites: [
@@ -37,19 +52,19 @@ export default {
             });
 
             if (channel) {
-                await channel.send({
-                    embeds: [
-                        {
-                            title: '🎵 Music Channel Setup',
-                            description: `This channel has been set up for music requests!\n\n**How to use:**\n• Simply type a song name or paste a YouTube link here to play.\n• Use slash commands like \`/skip\`, \`/stop\`, \`/queue\` for control.\n\nEnjoy the tunes! 🎧`,
-                            color: 0x00ff00,
-                        },
-                    ],
-                });
+                const welcomeEmbed = createSuccessEmbed(
+                    styleResponse(
+                        `**Thankan Chettan Vannu!**\n\nI created this channel for music.\nType a song name or link to start.`,
+                        'success'
+                    )
+                ).setTitle('🎵 Music Channel Setup');
+
+                await channel.send({ embeds: [welcomeEmbed] });
                 logger.info(`Created music channel in ${guild.name}`);
             }
         } catch (error) {
-            logError(error as Error, { context: 'Failed to create music channel', guildId: guild.id });
+            logError(error as Error, { context: 'Failed to setup music channel', guildId: guild.id });
         }
     },
 };
+

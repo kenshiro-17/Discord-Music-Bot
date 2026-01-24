@@ -1,6 +1,6 @@
 import { Events, Message } from 'discord.js';
 import { logError } from '../utils/logger';
-import { MUSIC_CHANNEL_NAME } from './guildCreate';
+import { BOT_CHANNEL_NAMES } from './guildCreate';
 
 const cooldowns = new Map<string, number>();
 const COOLDOWN_DURATION = 3000; // 3 seconds
@@ -10,9 +10,9 @@ export default {
     async execute(message: Message) {
         if (message.author.bot || !message.guild) return;
 
-        // Check if it's the music channel
+        // Check if it's a recognized bot channel
         const channel = message.channel;
-        if (!('name' in channel) || channel.name !== MUSIC_CHANNEL_NAME) return;
+        if (!('name' in channel) || !BOT_CHANNEL_NAMES.includes((channel as any).name.toLowerCase())) return;
 
         const query = message.content.trim();
         if (!query) return;
@@ -45,3 +45,4 @@ export default {
         }
     },
 };
+

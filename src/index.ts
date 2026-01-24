@@ -136,6 +136,10 @@ async function start(): Promise<void> {
     await loadCommands(client);
     await loadEvents(client);
 
+    // Log voice dependency report for debugging
+    const { generateDependencyReport } = require('@discordjs/voice');
+    logger.info('Voice Dependency Report:\n' + generateDependencyReport());
+
     // Login to Discord
     await client.login(config.token);
   } catch (error) {

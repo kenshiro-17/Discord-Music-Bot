@@ -8,7 +8,10 @@
       "Bash(git push:*)",
       "Bash(npm start)",
       "Bash(npm run build)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(docker-compose down:*)",
+      "Bash(docker-compose build:*)",
+      "Bash(ls:*)"
     ]
   }
 }

@@ -10,7 +10,8 @@ A production-grade, personality-filled Discord music bot built with TypeScript. 
 - **🗣️ Unique Persona**: Responds in "Manglish" with the rough, authoritative tone of Thankan Chettan.
 - **⏯️ Interactive Controls**:
   - **Buttons**: Play/Pause, Next, Previous, Stop, and Show Queue directly on the player.
-  - **Animated Progress**: The "Now Playing" message updates in real-time (every 10s) to show playback progress.
+  - **Advanced Controls**: Seek Backward (⏪ 10s), Seek Forward (⏩ 10s), Loop, and Shuffle via the secondary button row.
+  - **Animated Progress**: The "Now Playing" message updates in real-time (every 5s) to show playback progress.
 - **📋 Queue Management**:
   - Pagination support for long queues.
   - Shuffle, Loop (Song/Queue), Move, Remove, and Jump functionality.

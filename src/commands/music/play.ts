@@ -66,19 +66,29 @@ export default {
       isFirstSong = true;
 
       // Join voice channel
-      const connection = await joinVoiceChannelHandler(voiceChannel as any);
-      queue.connection = connection;
+      logger.info('Connecting to voice channel...', { guildId: voiceChannel.guild.id });
+      try {
+        const connection = await joinVoiceChannelHandler(voiceChannel as any);
+        queue.connection = connection;
+        logger.info('Connected to voice channel', { guildId: voiceChannel.guild.id });
+      } catch (error) {
+        logger.error('Failed to connect to voice channel', { error: (error as Error).message });
+        throw error;
+      }
     }
 
     // Process input
     let songs: Song[] = [];
 
     if (query) {
+      logger.info('Processing query', { query });
       // Handle URL or search query
       if (isYouTubeUrl(query)) {
         if (isYouTubePlaylistUrl(query)) {
+          logger.info('Fetching playlist info...');
           // YouTube playlist
           songs = await getYouTubePlaylist(query, interaction.user);
+          logger.info('Playlist info fetched', { count: songs.length });
 
           if (songs.length === 0) {
             throw new PlaybackError('Failed to load playlist or playlist is empty');

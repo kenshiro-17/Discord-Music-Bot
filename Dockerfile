@@ -54,11 +54,11 @@ RUN mkdir -p logs && chown -R tc:tc /app
 # Switch to non-root user
 USER tc
 
-# Health check
+# Health check (uses PORT env variable, defaults to 8080)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD node -e "require('http').get('http://localhost:8080/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+    CMD node -e "const port = process.env.PORT || process.env.HEALTH_CHECK_PORT || '8080'; require('http').get('http://localhost:' + port + '/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
-# Expose health check port
+# Expose health check port (Railway will use PORT env variable)
 EXPOSE 8080
 
 # Start the bot

@@ -51,7 +51,8 @@ export function createHealthCheckServer(): http.Server {
     }
   });
 
-  const port = parseInt(process.env.HEALTH_CHECK_PORT || '8080', 10);
+  // Railway and other cloud platforms may set PORT env variable
+  const port = parseInt(process.env.PORT || process.env.HEALTH_CHECK_PORT || '8080', 10);
 
   server.listen(port, '0.0.0.0', () => {
     logger.info(`Health check server listening on port ${port}`);

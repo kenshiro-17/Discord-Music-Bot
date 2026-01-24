@@ -90,24 +90,26 @@ export async function searchYouTube(query: string, limit: number = 5): Promise<Y
  */
 export async function getYouTubeInfo(url: string): Promise<Song | null> {
   try {
-    const info = await play.video_info(url);
+    logger.debug('Fetching video info with yt-dlp', { url });
 
-    if (!info || !info.video_details) {
-      return null;
-    }
+    const { stdout } = await execFileAsync('yt-dlp', [
+      '--dump-json',
+      '--no-warnings',
+      url
+    ]);
 
-    const video = info.video_details;
+    const video = JSON.parse(stdout);
 
-    // Check if it's a live stream
-    if (video.live) {
+    // Check if it's a live stream (optional, yt-dlp handles lives, but we might want to skip)
+    if (video.is_live) {
       throw new PlaybackError('Live streams are not supported');
     }
 
     return {
       title: video.title || 'Unknown Title',
-      url: video.url,
-      duration: video.durationInSec || 0,
-      thumbnail: video.thumbnails[0]?.url || '',
+      url: video.webpage_url || video.url || url,
+      duration: video.duration || 0,
+      thumbnail: video.thumbnail || '',
       requestedBy: {} as User, // Will be set by caller
       source: 'youtube',
     };

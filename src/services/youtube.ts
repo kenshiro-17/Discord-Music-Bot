@@ -3,6 +3,10 @@ import { Song, YouTubeSearchResult } from '../types';
 import { User } from 'discord.js';
 import { logger, logError } from '../utils/logger';
 import { PlaybackError } from '../utils/errorHandler';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+
+const execFileAsync = promisify(execFile);
 
 /**
  * Search cache to avoid repeated searches
@@ -118,42 +122,41 @@ export async function getYouTubeInfo(url: string): Promise<Song | null> {
  */
 export async function getYouTubePlaylist(url: string, user: User): Promise<Song[]> {
   try {
-    const playlist = await play.playlist_info(url, { incomplete: true });
+    logger.debug('Fetching playlist with yt-dlp', { url });
 
-    if (!playlist) {
-      throw new PlaybackError('Failed to fetch playlist information');
+    const { stdout } = await execFileAsync('yt-dlp', [
+      '--dump-single-json',
+      '--flat-playlist',
+      '--playlist-end', '100',
+      '--no-warnings',
+      url
+    ], { maxBuffer: 10 * 1024 * 1024 }); // 10MB buffer
+
+    const playlistData = JSON.parse(stdout);
+
+    if (!playlistData || !playlistData.entries || playlistData.entries.length === 0) {
+      throw new Error('Playlist is empty or unavailable');
     }
 
-    await playlist.fetch();
-    const videos = (playlist as any).videos;
-
-    if (!videos || videos.length === 0) {
-      throw new PlaybackError('Playlist is empty or unavailable');
-    }
-
-    // Limit to 100 songs to avoid abuse
-    const limitedVideos = videos.slice(0, 100);
-
-    const songs: Song[] = limitedVideos
-      .filter((video: any) => !video.live) // Filter out live streams
-      .map((video: any) => ({
-        title: video.title || 'Unknown Title',
-        url: video.url,
-        duration: video.durationInSec || 0,
-        thumbnail: video.thumbnails[0]?.url || '',
+    const songs: Song[] = playlistData.entries
+      .map((entry: any) => ({
+        title: entry.title || 'Unknown Title',
+        url: entry.url || `https://www.youtube.com/watch?v=${entry.id}`,
+        duration: entry.duration || 0,
+        thumbnail: entry.thumbnail || `https://img.youtube.com/vi/${entry.id}/hqdefault.jpg`,
         requestedBy: user,
         source: 'youtube' as const,
       }));
 
     logger.info('YouTube playlist fetched', {
       url,
-      title: playlist.title,
+      title: playlistData.title,
       songs: songs.length,
     });
 
     return songs;
   } catch (error) {
-    logger.warn('Failed to fetch playlist, attempting fallback to single video', { url, error: (error as Error).message });
+    logger.warn('Failed to fetch playlist with yt-dlp, attempting fallback to single video', { url, error: (error as Error).message });
 
     // Fallback: If playlist fails but has a video ID, return that single video
     if (url.includes('v=')) {
@@ -164,6 +167,7 @@ export async function getYouTubePlaylist(url: string, user: User): Promise<Song[
 
         const video = await getYouTubeInfo(videoUrl);
         if (video) {
+          video.requestedBy = user; // Ensure user is set
           return [video];
         }
       } catch (innerError) {
@@ -172,7 +176,7 @@ export async function getYouTubePlaylist(url: string, user: User): Promise<Song[
     }
 
     logError(error as Error, { context: 'Failed to get YouTube playlist', url });
-    throw new PlaybackError('Failed to fetch playlist (and fallback failed)');
+    throw new PlaybackError('Failed to fetch playlist');
   }
 }
 

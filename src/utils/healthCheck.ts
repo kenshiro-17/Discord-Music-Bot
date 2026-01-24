@@ -51,7 +51,7 @@ export function createHealthCheckServer(): http.Server {
     }
   });
 
-  server.listen(8080, () => {
+  server.listen(8080, '0.0.0.0', () => {
     logger.info('Health check server listening on port 8080');
   });
 

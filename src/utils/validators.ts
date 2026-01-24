@@ -23,26 +23,7 @@ export function isYouTubePlaylistUrl(url: string): boolean {
   return url.includes('youtube.com') && (url.includes('list=') || url.includes('&list='));
 }
 
-/**
- * Validates if a string is a valid Spotify URL
- */
-export function isSpotifyUrl(url: string): boolean {
-  const spotifyRegex = /^https?:\/\/(open\.)?spotify\.com\/(track|playlist|album)\/.+/;
-  return spotifyRegex.test(url);
-}
 
-/**
- * Parses Spotify URL to extract type and ID
- */
-export function parseSpotifyUrl(url: string): { type: 'track' | 'playlist' | 'album'; id: string } | null {
-  const match = url.match(/spotify\.com\/(track|playlist|album)\/([a-zA-Z0-9]+)/);
-  if (!match) return null;
-
-  return {
-    type: match[1] as 'track' | 'playlist' | 'album',
-    id: match[2],
-  };
-}
 
 /**
  * Validates if a URL is safe to use

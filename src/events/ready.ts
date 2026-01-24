@@ -1,8 +1,8 @@
 import { Client, ActivityType } from 'discord.js';
 import { logger } from '../utils/logger';
 import { initializePlayDl } from '../services/youtube';
-import { initializeSpotify } from '../services/spotify';
-import { cleanupOldTempFiles } from '../handlers/audioHandler';
+
+
 
 export default {
   name: 'ready',
@@ -24,10 +24,9 @@ export default {
 
     // Initialize services
     await initializePlayDl();
-    await initializeSpotify();
 
-    // Cleanup old temp files
-    cleanupOldTempFiles();
+
+
 
     logger.info('Bot is ready!');
   },

@@ -76,8 +76,8 @@ export async function searchYouTube(query: string, limit: number = 5): Promise<Y
 
     return results;
   } catch (error) {
-    logError(error as Error, { context: 'YouTube search failed', query });
-    throw new PlaybackError('Failed to search YouTube');
+    logError(error as Error, { context: 'YouTube search failed', query, limit });
+    throw new PlaybackError(`Failed to search YouTube: ${(error as Error).message}`);
   }
 }
 
@@ -131,8 +131,8 @@ export async function getYouTubePlaylist(url: string, user: User): Promise<Song[
       throw new PlaybackError('Playlist is empty or unavailable');
     }
 
-    // Limit to 50 songs to avoid abuse
-    const limitedVideos = videos.slice(0, 50);
+    // Limit to 100 songs to avoid abuse
+    const limitedVideos = videos.slice(0, 100);
 
     const songs: Song[] = limitedVideos
       .filter((video: any) => !video.live) // Filter out live streams

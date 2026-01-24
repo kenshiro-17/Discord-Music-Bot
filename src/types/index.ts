@@ -25,11 +25,8 @@ export interface Song {
   /** User who requested the song */
   requestedBy: User;
   /** Music source type */
-  source: 'youtube' | 'spotify' | 'file';
-  /** Original filename for file uploads */
-  filename?: string;
-  /** File path for uploaded files */
-  filePath?: string;
+  source: 'youtube';
+
 }
 
 /**
@@ -99,10 +96,7 @@ export interface BotConfig {
   token: string;
   /** Discord client ID */
   clientId: string;
-  /** Spotify client ID */
-  spotifyClientId?: string;
-  /** Spotify client secret */
-  spotifyClientSecret?: string;
+
   /** Sentry DSN */
   sentryDsn?: string;
   /** Environment */
@@ -135,21 +129,7 @@ export interface YouTubeSearchResult {
   channel: string;
 }
 
-/**
- * Spotify track info
- */
-export interface SpotifyTrack {
-  /** Track name */
-  name: string;
-  /** Artist names */
-  artists: string[];
-  /** Duration in milliseconds */
-  duration: number;
-  /** Album name */
-  album: string;
-  /** Album art URL */
-  albumArt: string;
-}
+
 
 /**
  * Validation result

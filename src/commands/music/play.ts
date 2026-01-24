@@ -6,14 +6,11 @@ import { playSong } from '../../handlers/audioHandler';
 import {
   isYouTubeUrl,
   isYouTubePlaylistUrl,
-  isSpotifyUrl,
   getUserVoiceChannel,
   validateVoicePermissions,
   sanitizeSearchQuery,
 } from '../../utils/validators';
 import { getYouTubeInfo, getYouTubePlaylist, searchYouTube } from '../../services/youtube';
-import { processSpotifyUrl, isSpotifyAvailable } from '../../services/spotify';
-import { processAudioFile } from '../../services/fileHandler';
 import {
   createSongAddedEmbed,
   createNowPlayingEmbed,
@@ -28,26 +25,22 @@ import { logger } from '../../utils/logger';
 export default {
   data: new SlashCommandBuilder()
     .setName('play')
-    .setDescription('Play a song from YouTube, Spotify, or upload a file')
+    .setDescription('Play a song from YouTube or upload a file')
     .addStringOption((option) =>
       option
         .setName('query')
-        .setDescription('Song name, YouTube URL, or Spotify URL')
+        .setDescription('Song name or YouTube URL')
         .setRequired(false)
-    )
-    .addAttachmentOption((option) =>
-      option.setName('file').setDescription('Upload an audio file').setRequired(false)
     ),
 
   async execute(interaction: ChatInputCommandInteraction) {
     await interaction.deferReply();
 
     const query = interaction.options.getString('query');
-    const file = interaction.options.getAttachment('file');
 
     // Validate input
-    if (!query && !file) {
-      throw new ValidationError('Please provide a song name, URL, or upload a file');
+    if (!query) {
+      throw new ValidationError('Please provide a song name or YouTube URL');
     }
 
     // Get user's voice channel
@@ -79,11 +72,7 @@ export default {
     // Process input
     let songs: Song[] = [];
 
-    if (file) {
-      // Handle file upload
-      const song = await processAudioFile(file, interaction.user);
-      songs = [song];
-    } else if (query) {
+    if (query) {
       // Handle URL or search query
       if (isYouTubeUrl(query)) {
         if (isYouTubePlaylistUrl(query)) {
@@ -124,44 +113,6 @@ export default {
 
           song.requestedBy = interaction.user;
           songs = [song];
-        }
-      } else if (isSpotifyUrl(query)) {
-        // Spotify URL
-        if (!isSpotifyAvailable()) {
-          throw new ValidationError(
-            'Spotify integration is not configured. Please use YouTube URLs or search by song name.'
-          );
-        }
-
-        const spotifySongs = await processSpotifyUrl(query, interaction.user);
-
-        if (!spotifySongs || spotifySongs.length === 0) {
-          throw new PlaybackError('Failed to load Spotify content');
-        }
-
-        if (spotifySongs.length > 1) {
-          // Playlist or album
-          const addResult = addSongs(interaction.guildId!, spotifySongs);
-
-          if (!addResult.success) {
-            throw new ValidationError(addResult.error!);
-          }
-
-          // Start playback if first song
-          if (isFirstSong) {
-            await playSong(interaction.guildId!);
-          }
-
-          const embed = createPlaylistAddedEmbed(
-            'Spotify Playlist/Album',
-            addResult.count!,
-            'Spotify'
-          );
-
-          await interaction.editReply({ embeds: [embed] });
-          return;
-        } else {
-          songs = spotifySongs;
         }
       } else {
         // Search query

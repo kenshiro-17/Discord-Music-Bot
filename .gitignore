@@ -51,3 +51,5 @@ temp/
 *.pid.lock
 
 nul
+
+bot start.txt

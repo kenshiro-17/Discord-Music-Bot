@@ -6,7 +6,7 @@ import { playSong } from './audioHandler';
 import { leaveVoiceChannel } from './voiceManager';
 import { validateMusicCommand } from '../utils/validators';
 import { createNowPlayingEmbed, createQueueEmbed } from '../utils/embedBuilder';
-import { createNowPlayingButtons } from '../utils/buttonBuilder';
+import { createNowPlayingButtons, createPaginationButtons } from '../utils/buttonBuilder';
 // import { safeReply } from '../utils/errorHandler';
 
 /**
@@ -50,9 +50,24 @@ export async function handleButtonInteraction(interaction: ButtonInteraction): P
   } else if (customId === 'music_volume_down') {
     await handleVolumeDown(interaction, queue!);
   } else if (customId.startsWith('queue_page_')) {
-    // Queue pagination handled separately
-    // const page = parseInt(customId.split('_')[2], 10);
-    // This would be handled by the queue command
+    const page = parseInt(customId.split('_')[2], 10);
+    
+    if (!queue || queue.songs.length === 0) {
+        return;
+    }
+
+    const songsPerPage = 10;
+    const totalPages = Math.ceil(queue.songs.length / songsPerPage);
+
+    if (page < 1 || page > totalPages) return;
+
+    const embed = createQueueEmbed(queue, page);
+    const buttons = createPaginationButtons(page, totalPages);
+
+    await interaction.editReply({
+        embeds: [embed],
+        components: [buttons]
+    });
   }
 }
 

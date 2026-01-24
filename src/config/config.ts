@@ -37,7 +37,7 @@ export const config: BotConfig = {
 
   // Application configuration
   nodeEnv: (process.env.NODE_ENV as 'development' | 'production') || 'development',
-  logLevel: (process.env.LOG_LEVEL as 'error' | 'warn' | 'info' | 'debug') || 'info',
+  logLevel: (process.env.LOG_LEVEL as 'error' | 'warn' | 'info' | 'debug') || 'debug',
   defaultVolume: parseInt(process.env.DEFAULT_VOLUME || '50', 10),
   maxQueueSize: parseInt(process.env.MAX_QUEUE_SIZE || '100', 10),
   inactivityTimeout: parseInt(process.env.INACTIVITY_TIMEOUT || '300', 10),

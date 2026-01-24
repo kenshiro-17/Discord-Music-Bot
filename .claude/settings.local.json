@@ -2,7 +2,13 @@
   "permissions": {
     "allow": [
       "Bash(where claude:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(npm start)",
+      "Bash(npm run build)",
+      "Bash(curl:*)"
     ]
   }
 }

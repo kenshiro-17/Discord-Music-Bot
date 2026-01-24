@@ -1,0 +1,68 @@
+═══════════════════════════════════════════════════════════════════════════════
+🍪 YOUTUBE COOKIES SETUP - QUICK START GUIDE
+═══════════════════════════════════════════════════════════════════════════════
+
+⚠️ YOUR BOT WILL GET 403 ERRORS WITHOUT COOKIES! ⚠️
+
+STEP 1: INSTALL BROWSER EXTENSION
+───────────────────────────────────────────────────────────────────────────────
+Chrome/Edge: https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc
+Firefox:     https://addons.mozilla.org/en-US/firefox/addon/cookies-txt/
+
+STEP 2: EXPORT COOKIES
+───────────────────────────────────────────────────────────────────────────────
+1. Go to https://youtube.com and login
+2. Click the "Get cookies.txt LOCALLY" extension icon
+3. Click "Export" - this downloads "youtube.com_cookies.txt"
+
+STEP 3: ADD TO .env FILE
+───────────────────────────────────────────────────────────────────────────────
+1. Open the downloaded "youtube.com_cookies.txt" file in Notepad
+2. Copy ALL the content (Ctrl+A, Ctrl+C)
+3. Open your .env file in this project
+4. Find the line: YOUTUBE_COOKIES=
+5. Paste your cookies after the = sign (keep it on one line)
+
+Example:
+YOUTUBE_COOKIES="# Netscape HTTP Cookie File
+.youtube.com	TRUE	/	TRUE	1740000000	CONSENT	YES+cb
+.youtube.com	TRUE	/	FALSE	1740000000	VISITOR_INFO1_LIVE	xxxxx"
+
+⚠️ IMPORTANT: Keep quotes around the cookies and don't add extra newlines!
+
+STEP 4: RESTART THE BOT
+───────────────────────────────────────────────────────────────────────────────
+Run: npm start
+
+Look for this success message:
+✅ "YTDL agent initialized successfully with cookies { count: 15 }"
+
+If you see warnings about "No cookies provided" - cookies weren't loaded!
+
+STEP 5: TEST
+───────────────────────────────────────────────────────────────────────────────
+In Discord, try: /play https://www.youtube.com/watch?v=dQw4w9WgXcQ
+
+If it plays without errors - SUCCESS! 🎉
+
+═══════════════════════════════════════════════════════════════════════════════
+TROUBLESHOOTING
+═══════════════════════════════════════════════════════════════════════════════
+
+❌ Still getting 403 errors?
+   → Make sure cookies are on a SINGLE line in .env
+   → Re-export fresh cookies (they expire)
+   → Check for extra quotes or escape characters
+
+❌ "Cookies provided but failed to parse"?
+   → Cookie format is wrong
+   → Try removing quotes or using JSON format instead
+   → See YOUTUBE_COOKIES_SETUP.md for alternative formats
+
+❌ Bot won't start?
+   → Check .env for syntax errors (missing quotes, extra newlines)
+   → Verify DISCORD_TOKEN is still valid
+
+═══════════════════════════════════════════════════════════════════════════════
+For detailed guide, see: YOUTUBE_COOKIES_SETUP.md
+═══════════════════════════════════════════════════════════════════════════════

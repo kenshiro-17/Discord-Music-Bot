@@ -79,6 +79,10 @@ export function leaveVoiceChannel(guildId: string): void {
  * Setup connection event handlers
  */
 function setupConnectionHandlers(connection: VoiceConnection, guildId: string): void {
+  connection.on('stateChange', (oldState, newState) => {
+    logger.debug(`Connection transitioned from ${oldState.status} to ${newState.status}`, { guildId });
+  });
+
   connection.on(VoiceConnectionStatus.Disconnected, async () => {
     try {
       // Try to reconnect

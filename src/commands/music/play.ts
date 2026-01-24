@@ -85,7 +85,8 @@ export default {
           }
 
           // Add all songs
-          const addResult = addSongs(interaction.guildId!, songs);
+          logger.info('Adding playlist songs to queue', { guildId: voiceChannel.guild.id, count: songs.length });
+          const addResult = addSongs(voiceChannel.guild.id, songs);
 
           if (!addResult.success) {
             throw new ValidationError(addResult.error!);
@@ -93,7 +94,7 @@ export default {
 
           // Start playback if first song
           if (isFirstSong) {
-            await playSong(interaction.guildId!);
+            await playSong(voiceChannel.guild.id);
           }
 
           const embed = createPlaylistAddedEmbed(
@@ -157,7 +158,7 @@ export default {
     }
 
     const song = songs[0];
-    const addResult = addSong(interaction.guildId!, song);
+    const addResult = addSong(voiceChannel.guild.id, song);
 
     if (!addResult.success) {
       throw new ValidationError(addResult.error!);

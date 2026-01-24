@@ -27,6 +27,7 @@ export async function joinVoiceChannelHandler(
       guildId: channel.guild.id,
       adapterCreator: channel.guild.voiceAdapterCreator as any,
       selfDeaf: true,
+      group: `vc_${channel.guild.id}_${Date.now()}`, // Force unique connection group
     });
 
     // Setup connection handlers
@@ -43,7 +44,8 @@ export async function joinVoiceChannelHandler(
         });
       });
 
-      await entersState(connection, VoiceConnectionStatus.Ready, 30_000);
+      // Increased timeout to 60s
+      await entersState(connection, VoiceConnectionStatus.Ready, 60_000);
       logger.info('Voice connection ready!', { guildId: channel.guild.id });
     } catch (error) {
       connection.destroy();

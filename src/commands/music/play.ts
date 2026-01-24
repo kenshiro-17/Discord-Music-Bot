@@ -45,11 +45,24 @@ export default {
     }
 
     // Get user's voice channel
-    const voiceChannel = getUserVoiceChannel(interaction);
+    const cachedChannel = getUserVoiceChannel(interaction);
 
-    if (!voiceChannel) {
+    if (!cachedChannel) {
       throw new ValidationError('You need to be in a voice channel to play music');
     }
+
+    // Fetch fresh channel to ensure we have latest guild/adapter info
+    const voiceChannel = await interaction.client.channels.fetch(cachedChannel.id) as any;
+
+    if (!voiceChannel) {
+       throw new ValidationError('Could not fetch your voice channel');
+    }
+
+    logger.debug('Voice channel fetched', { 
+      id: voiceChannel.id, 
+      guild: voiceChannel.guild.id,
+      adapterCreatorAvailable: !!voiceChannel.guild.voiceAdapterCreator 
+    });
 
     // Validate permissions
     const permissionCheck = validateVoicePermissions(voiceChannel);

@@ -122,7 +122,10 @@ async function start(): Promise<void> {
     logger.info('Configuration', getConfigSummary());
 
     // Initialize play-dl with cookies if provided
-    if (config.youtubeCookies) {
+    // NOTE: play-dl uses cookies differently than ytdl-core
+    // For now, skip play-dl cookies to avoid "Invalid character in header" errors
+    // ytdl-core (used for actual playback) has cookies loaded separately
+    if (config.youtubeCookies && false) { // Disabled for now - cookies work in ytdl-core
       try {
         const play = (await import('play-dl')).default || (await import('play-dl'));
         await play.setToken({ youtube: { cookie: config.youtubeCookies } });

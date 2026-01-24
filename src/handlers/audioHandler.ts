@@ -87,6 +87,9 @@ async function handleSongEnd(guildId: string): Promise<void> {
  */
 import { parseCookies } from '../utils/cookieParser';
 
+// Modern browser User-Agent to avoid bot detection
+const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+
 // Initialize YTDL agent with cookies if available
 let agent: any;
 try {
@@ -97,9 +100,11 @@ try {
       logger.info('YTDL agent initialized successfully with cookies', { count: cookies.length });
     } else {
       logger.warn('YTDL agent: Cookies provided but failed to parse. Playback may fail (403).');
+      logger.warn('Please export cookies using "Get cookies.txt LOCALLY" browser extension');
     }
   } else {
     logger.warn('YTDL agent: No cookies provided. Playback may fail (403) for restricted videos.');
+    logger.warn('Set YOUTUBE_COOKIES in .env to fix 403 errors. Export cookies from YouTube using a browser extension.');
   }
 } catch (error) {
   logger.warn('Failed to initialize YTDL agent with cookies', { error: (error as Error).message });
@@ -120,11 +125,24 @@ async function createAudioResourceFromSong(song: Song, volume: number): Promise<
       quality: 'highestaudio',
       dlChunkSize: 0, // Disable chunking for stability
       agent, // Inject the agent with cookies
+      requestOptions: {
+        headers: {
+          'User-Agent': USER_AGENT,
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Accept-Encoding': 'gzip, deflate',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Connection': 'keep-alive',
+        },
+      },
     });
 
     const resource = createAudioResource(stream, {
       inputType: undefined,
       inlineVolume: true,
+      // Add FFmpeg args for reconnection and stability
+      metadata: {
+        title: song.title,
+      },
     });
 
     // Set volume

@@ -4,13 +4,14 @@ import {
   AudioPlayer,
   AudioPlayerStatus,
   AudioResource,
+  StreamType,
 } from '@discordjs/voice';
 import { Song } from '../types';
 import { logger, logError } from '../utils/logger';
 import { PlaybackError } from '../utils/errorHandler';
 import { getQueue, skip, stop as stopQueue } from './queueManager';
 import { startInactivityTimer } from './voiceManager';
-import play from 'play-dl';
+import { spawn } from 'child_process';
 
 /**
  * Creates and configures an audio player
@@ -81,19 +82,36 @@ async function handleSongEnd(guildId: string): Promise<void> {
 }
 
 /**
- * Creates audio resource from song
+ * Creates audio resource from song using yt-dlp
  */
 async function createAudioResourceFromSong(song: Song, volume: number): Promise<AudioResource> {
   try {
     // Verify URL validity first
     if (!song.url) throw new Error('No URL provided for song');
 
-    // Use play-dl for streaming
-    // It automatically handles cookies if they were set in index.ts
-    const stream = await play.stream(song.url);
+    logger.debug('Spawning yt-dlp process', { url: song.url });
 
-    const resource = createAudioResource(stream.stream, {
-      inputType: stream.type,
+    const ytDlp = spawn('yt-dlp', [
+      '-o', '-',
+      '-q',
+      '-f', 'bestaudio',
+      '--no-playlist',
+      '--no-warnings',
+      '--buffer-size', '16K', // Optimize buffering
+      song.url
+    ], { stdio: ['ignore', 'pipe', 'ignore'] });
+
+    ytDlp.on('error', (error) => {
+        logger.error('yt-dlp process error', { error: error.message });
+    });
+
+    // Handle stream errors
+    ytDlp.stdout.on('error', (error) => {
+        logger.error('yt-dlp stream error', { error: error.message });
+    });
+
+    const resource = createAudioResource(ytDlp.stdout, {
+      inputType: StreamType.Arbitrary,
       inlineVolume: true,
       metadata: {
         title: song.title,

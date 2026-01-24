@@ -1,4 +1,4 @@
-import { Events, Guild, ChannelType, PermissionFlagsBits, TextChannel } from 'discord.js';
+import { Events, Guild, ChannelType, PermissionFlagsBits } from 'discord.js';
 import { logger, logError } from '../utils/logger';
 
 export const MUSIC_CHANNEL_NAME = 'music-requests';

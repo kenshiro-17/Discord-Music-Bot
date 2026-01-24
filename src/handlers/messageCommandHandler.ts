@@ -1,6 +1,7 @@
 import { Message } from 'discord.js';
-import { execute as playExecute } from '../commands/music/play';
+import playCommand from '../commands/music/play';
 import { logger, logError } from '../utils/logger';
+import { styleResponse } from '../utils/persona';
 
 // This is a bit of a hack to reuse the slash command logic.
 // We mock the interaction object to pass to the play command.
@@ -8,7 +9,7 @@ import { logger, logError } from '../utils/logger';
 
 export async function handleMessagePlay(message: Message, query: string): Promise<void> {
     if (!message.member?.voice.channel) {
-        await message.reply('You need to be in a voice channel to play music!');
+        await message.reply(styleResponse('You need to be in a voice channel to play music!', 'error'));
         return;
     }
 
@@ -37,22 +38,27 @@ export async function handleMessagePlay(message: Message, query: string): Promis
         editReply: async (content: any) => {
             // If content is an embed, we send it.
             // If it's a string, we send it.
-            await message.channel.send(content);
+            if (message.channel && message.channel.isTextBased()) {
+                await message.channel.send(content);
+            }
             return { id: message.id }; // Return fake message
         },
         followUp: async (content: any) => {
-            await message.channel.send(content);
+            if (message.channel && message.channel.isTextBased()) {
+                await message.channel.send(content);
+            }
             return { id: message.id };
         }
     };
 
     try {
         logger.info(`Processing message play request: ${query} from ${message.author.tag}`);
-        await playExecute(mockInteraction);
+        await playCommand.execute(mockInteraction);
         // Cleanup the original command message to keep chat clean? 
         // Maybe later.
     } catch (error) {
         logError(error as Error, { context: 'Handle Message Play' });
-        await message.reply('Failed to play track. Please try again.');
+        await message.reply(styleResponse('Failed to play track. Please try again.', 'error'));
     }
 }
+```

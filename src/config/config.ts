@@ -40,7 +40,7 @@ export const config: BotConfig = {
   logLevel: (process.env.LOG_LEVEL as 'error' | 'warn' | 'info' | 'debug') || 'debug',
   defaultVolume: parseInt(process.env.DEFAULT_VOLUME || '50', 10),
   maxQueueSize: parseInt(process.env.MAX_QUEUE_SIZE || '100', 10),
-  inactivityTimeout: parseInt(process.env.INACTIVITY_TIMEOUT || '300', 10),
+  inactivityTimeout: parseInt(process.env.INACTIVITY_TIMEOUT || '600', 10),
   maxFileSize: parseInt(process.env.MAX_FILE_SIZE || '25', 10),
   youtubeCookies: process.env.YOUTUBE_COOKIES || '',
 };

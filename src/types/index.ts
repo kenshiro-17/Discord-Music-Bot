@@ -7,6 +7,7 @@ import {
   Collection,
   ButtonInteraction,
   StringSelectMenuInteraction,
+  Message,
 } from 'discord.js';
 import { VoiceConnection, AudioPlayer } from '@discordjs/voice';
 
@@ -56,6 +57,10 @@ export interface ServerQueue {
   audioPlayer: AudioPlayer | null;
   /** Index of currently playing song */
   currentIndex: number;
+  /** Message showing now playing status */
+  nowPlayingMessage?: Message;
+  /** Interval for updating progress bar */
+  progressInterval?: NodeJS.Timeout;
 }
 
 /**

@@ -12,6 +12,8 @@ import { PlaybackError } from '../utils/errorHandler';
 import { getQueue, skip, stop as stopQueue } from './queueManager';
 import { startInactivityTimer } from './voiceManager';
 import { spawn } from 'child_process';
+import { createNowPlayingEmbed } from '../utils/embedBuilder';
+import { createNowPlayingButtons } from '../utils/buttonBuilder';
 
 /**
  * Creates and configures an audio player
@@ -60,6 +62,12 @@ export function setupAudioPlayerHandlers(audioPlayer: AudioPlayer, guildId: stri
 async function handleSongEnd(guildId: string): Promise<void> {
   const queue = getQueue(guildId);
   if (!queue) return;
+
+  // Clear progress interval
+  if (queue.progressInterval) {
+    clearInterval(queue.progressInterval);
+    queue.progressInterval = undefined;
+  }
 
   const skipResult = skip(guildId);
 
@@ -167,6 +175,12 @@ export async function playSong(guildId: string): Promise<void> {
       setupAudioPlayerHandlers(queue.audioPlayer, guildId);
     }
 
+    // Clear existing progress interval
+    if (queue.progressInterval) {
+      clearInterval(queue.progressInterval);
+      queue.progressInterval = undefined;
+    }
+
     // Create audio resource
     const resource = await createAudioResourceFromSong(song, queue.volume);
 
@@ -183,6 +197,46 @@ export async function playSong(guildId: string): Promise<void> {
       song: song.title,
       source: song.source,
     });
+
+    // Send Now Playing Message with updates
+    if (queue.textChannel) {
+        try {
+            const embed = createNowPlayingEmbed(song, queue, 0);
+            const buttons = createNowPlayingButtons(false, queue.loop); // Spread if it was array, but here it expects components array in reply options?
+            // Wait, createNowPlayingButtons returns ActionRowBuilder[].
+            // textChannel.send({ components: ... }) expects ActionRowBuilder[] or APIActionRow[].
+            // So we pass buttons directly.
+            
+            const message = await queue.textChannel.send({ embeds: [embed], components: buttons });
+            queue.nowPlayingMessage = message;
+
+            // Start animation interval (10s)
+            queue.progressInterval = setInterval(async () => {
+                if (!queue || !queue.playing || !queue.audioPlayer) {
+                    if (queue && queue.progressInterval) clearInterval(queue.progressInterval);
+                    return;
+                }
+                
+                // Calculate current time (playbackDuration is in ms)
+                const state = queue.audioPlayer.state;
+                let currentTime = 0;
+                if (state.status === AudioPlayerStatus.Playing && 'resource' in state) {
+                    currentTime = Math.floor((state.resource as AudioResource).playbackDuration / 1000);
+                }
+                
+                try {
+                    const newEmbed = createNowPlayingEmbed(song, queue, currentTime);
+                    await message.edit({ embeds: [newEmbed] });
+                } catch (error) {
+                    // Stop updating if message deleted or rate limited
+                    if (queue && queue.progressInterval) clearInterval(queue.progressInterval);
+                }
+            }, 10000);
+        } catch (msgError) {
+            logError(msgError as Error, { context: 'Failed to send now playing message' });
+        }
+    }
+
   } catch (error) {
     logError(error as Error, {
       context: 'Failed to play song',

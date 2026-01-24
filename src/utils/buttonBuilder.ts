@@ -102,5 +102,18 @@ export function createNowPlayingButtons(
   isPaused: boolean = false,
   loopMode: 'off' | 'song' | 'queue' = 'off'
 ): ActionRowBuilder<ButtonBuilder>[] {
-  return [createPlaybackButtons(isPaused), createLoopShuffleButtons(loopMode)];
+  const row1 = createPlaybackButtons(isPaused);
+
+  const loopLabel = loopMode === 'off' ? 'Loop: Off' : loopMode === 'song' ? 'Loop: Song' : 'Loop: Queue';
+  
+  const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId('music_seek_back').setLabel('-10s').setEmoji('⏪').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('music_seek_fwd').setLabel('+10s').setEmoji('⏩').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('music_loop').setLabel(loopLabel).setEmoji('🔁').setStyle(loopMode === 'off' ? ButtonStyle.Secondary : ButtonStyle.Success),
+    new ButtonBuilder().setCustomId('music_shuffle').setLabel('Shuffle').setEmoji('🔀').setStyle(ButtonStyle.Secondary)
+  );
+
+  const row3 = createVolumeButtons();
+
+  return [row1, row2, row3];
 }

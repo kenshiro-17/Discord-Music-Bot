@@ -92,24 +92,30 @@ async function handleSongEnd(guildId: string): Promise<void> {
 /**
  * Creates audio resource from song using yt-dlp
  */
-async function createAudioResourceFromSong(song: Song, volume: number): Promise<AudioResource> {
+async function createAudioResourceFromSong(song: Song, volume: number, seekTime: number = 0): Promise<AudioResource> {
   try {
     // Verify URL validity first
     if (!song.url) throw new Error('No URL provided for song');
 
-    logger.debug('Spawning yt-dlp process', { url: song.url });
+    logger.debug('Spawning yt-dlp process', { url: song.url, seekTime });
 
-    const ytDlp = spawn('yt-dlp', [
+    const args = [
       '-o', '-',
       '-q',
       '-f', 'bestaudio',
       '--no-playlist',
       '--no-warnings',
       '--buffer-size', '16K',
-      '--socket-timeout', '10',
-      '--',
-      song.url
-    ], { stdio: ['ignore', 'pipe', 'pipe'] }); // Capture stderr
+      '--socket-timeout', '10'
+    ];
+
+    if (seekTime > 0) {
+        args.push('--download-sections', `*${seekTime}-inf`);
+    }
+
+    args.push('--', song.url);
+
+    const ytDlp = spawn('yt-dlp', args, { stdio: ['ignore', 'pipe', 'pipe'] }); // Capture stderr
 
     ytDlp.on('error', (error) => {
         logger.error('yt-dlp process error', { error: error.message });
@@ -152,6 +158,34 @@ async function createAudioResourceFromSong(song: Song, volume: number): Promise<
       song: song.title,
     });
     throw new PlaybackError('Failed to create audio stream for playback');
+  }
+}
+
+/**
+ * Seeks to a specific time in the song
+ */
+export async function seekTo(guildId: string, timestamp: number): Promise<void> {
+  const queue = getQueue(guildId);
+  if (!queue || !queue.playing || !queue.audioPlayer) return;
+
+  const song = queue.songs[queue.currentIndex];
+  if (!song) return;
+
+  try {
+    // Create new resource starting at timestamp
+    const resource = await createAudioResourceFromSong(song, queue.volume, timestamp);
+    
+    // Play new resource
+    queue.audioPlayer.play(resource);
+    
+    // Update manual timer
+    queue.startTime = Date.now() - (timestamp * 1000);
+    queue.pausedTime = 0;
+    
+    logger.info('Seeked to position', { guildId, timestamp });
+  } catch (error) {
+    logError(error as Error, { context: 'Failed to seek' });
+    throw error;
   }
 }
 
@@ -283,5 +317,3 @@ export function updateVolume(guildId: string, volume: number): void {
 
   logger.info('Volume updated', { guildId, volume });
 }
-
-

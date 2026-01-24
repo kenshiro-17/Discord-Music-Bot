@@ -1,13 +1,10 @@
 import { ButtonInteraction } from 'discord.js';
-import { getQueue, pause, resume, setLoop, setVolume, previous } from './queueManager';
-import { skip as skipSong, stop as stopPlayback } from './queueManager';
-import { shuffleQueue } from './queueManager';
-import { playSong } from './audioHandler';
+import { getQueue, pause, resume, setLoop, setVolume, previous, skip as skipSong, stop as stopPlayback, shuffleQueue } from './queueManager';
+import { playSong, seekTo } from './audioHandler';
 import { leaveVoiceChannel } from './voiceManager';
 import { validateMusicCommand } from '../utils/validators';
 import { createNowPlayingEmbed, createQueueEmbed } from '../utils/embedBuilder';
 import { createNowPlayingButtons, createPaginationButtons } from '../utils/buttonBuilder';
-// import { safeReply } from '../utils/errorHandler';
 
 /**
  * Handles button interactions
@@ -49,6 +46,10 @@ export async function handleButtonInteraction(interaction: ButtonInteraction): P
     await handleVolumeUp(interaction, queue!);
   } else if (customId === 'music_volume_down') {
     await handleVolumeDown(interaction, queue!);
+  } else if (customId === 'music_seek_back') {
+    await handleSeek(interaction, queue!, -10);
+  } else if (customId === 'music_seek_fwd') {
+    await handleSeek(interaction, queue!, 10);
   } else if (customId.startsWith('queue_page_')) {
     const page = parseInt(customId.split('_')[2], 10);
     
@@ -81,9 +82,16 @@ async function handlePlayPause(interaction: ButtonInteraction, queue: any): Prom
     resume(interaction.guildId!);
   }
 
-  // Update embed
+  // Calculate current time manually for immediate feedback
+  let currentTime = 0;
+  if (queue.startTime) {
+      const now = Date.now();
+      const currentPaused = !queue.playing && queue.lastPauseTime ? (now - queue.lastPauseTime) : 0;
+      currentTime = Math.floor((now - queue.startTime - (queue.pausedTime || 0) - currentPaused) / 1000);
+  }
+
   const currentSong = queue.songs[queue.currentIndex];
-  const embed = createNowPlayingEmbed(currentSong, queue);
+  const embed = createNowPlayingEmbed(currentSong, queue, currentTime);
   const buttons = createNowPlayingButtons(!queue.playing, queue.loop);
 
   await interaction.editReply({
@@ -126,8 +134,6 @@ async function handlePrevious(interaction: ButtonInteraction, queue: any): Promi
   const previousResult = previous(interaction.guildId!);
 
   if (!previousResult.success) {
-     // If we can't go back, just show a warning (ephemeral if we hadn't deferred, but we deferred update)
-     // Since we deferred update on the message component, we can't send ephemeral easily without followUp
      await interaction.followUp({
          content: previousResult.error || 'Cannot go back further',
          ephemeral: true
@@ -151,7 +157,6 @@ async function handlePrevious(interaction: ButtonInteraction, queue: any): Promi
  * Handles queue button
  */
 async function handleQueue(interaction: ButtonInteraction, queue: any): Promise<void> {
-    // Show queue as ephemeral message
     const embed = createQueueEmbed(queue, 1);
     await interaction.reply({
         embeds: [embed],
@@ -176,7 +181,6 @@ async function handleStop(interaction: ButtonInteraction, _queue: any): Promise<
  * Handles loop button
  */
 async function handleLoop(interaction: ButtonInteraction, queue: any): Promise<void> {
-  // Cycle through loop modes
   let newMode: 'off' | 'song' | 'queue';
 
   if (queue.loop === 'off') {
@@ -189,9 +193,16 @@ async function handleLoop(interaction: ButtonInteraction, queue: any): Promise<v
 
   setLoop(interaction.guildId!, newMode);
 
-  // Update embed
+  // Calculate current time
+  let currentTime = 0;
+  if (queue.startTime) {
+      const now = Date.now();
+      const currentPaused = !queue.playing && queue.lastPauseTime ? (now - queue.lastPauseTime) : 0;
+      currentTime = Math.floor((now - queue.startTime - (queue.pausedTime || 0) - currentPaused) / 1000);
+  }
+
   const currentSong = queue.songs[queue.currentIndex];
-  const embed = createNowPlayingEmbed(currentSong, queue);
+  const embed = createNowPlayingEmbed(currentSong, queue, currentTime);
   const buttons = createNowPlayingButtons(!queue.playing, newMode);
 
   await interaction.editReply({
@@ -236,4 +247,35 @@ async function handleVolumeDown(interaction: ButtonInteraction, queue: any): Pro
     content: `Volume set to ${newVolume}%`,
     ephemeral: true,
   });
+}
+
+/**
+ * Handles seek button
+ */
+async function handleSeek(interaction: ButtonInteraction, queue: any, seconds: number): Promise<void> {
+    const currentSong = queue.songs[queue.currentIndex];
+    
+    // Calculate current time
+    let currentTime = 0;
+    if (queue.startTime) {
+        const now = Date.now();
+        const currentPaused = !queue.playing && queue.lastPauseTime ? (now - queue.lastPauseTime) : 0;
+        currentTime = Math.floor((now - queue.startTime - (queue.pausedTime || 0) - currentPaused) / 1000);
+    }
+
+    let newTime = currentTime + seconds;
+    if (newTime < 0) newTime = 0;
+    if (newTime > currentSong.duration) newTime = currentSong.duration - 1;
+
+    // Call seek logic
+    await seekTo(interaction.guildId!, newTime);
+
+    // Update embed immediately
+    const embed = createNowPlayingEmbed(currentSong, queue, newTime);
+    const buttons = createNowPlayingButtons(!queue.playing, queue.loop);
+
+    await interaction.editReply({
+      embeds: [embed],
+      components: buttons,
+    });
 }

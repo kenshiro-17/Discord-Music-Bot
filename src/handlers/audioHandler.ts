@@ -97,12 +97,24 @@ async function createAudioResourceFromSong(song: Song, volume: number): Promise<
       '-f', 'bestaudio',
       '--no-playlist',
       '--no-warnings',
-      '--buffer-size', '16K', // Optimize buffering
+      '--buffer-size', '16K',
       song.url
-    ], { stdio: ['ignore', 'pipe', 'ignore'] });
+    ], { stdio: ['ignore', 'pipe', 'pipe'] }); // Capture stderr
 
     ytDlp.on('error', (error) => {
         logger.error('yt-dlp process error', { error: error.message });
+    });
+
+    ytDlp.stderr.on('data', (data) => {
+        logger.warn(`yt-dlp stderr: ${data.toString()}`);
+    });
+
+    ytDlp.on('close', (code) => {
+        if (code !== 0) {
+            logger.error(`yt-dlp process exited with code ${code}`);
+        } else {
+            logger.debug('yt-dlp process finished successfully');
+        }
     });
 
     // Handle stream errors

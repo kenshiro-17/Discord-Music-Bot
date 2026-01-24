@@ -21,6 +21,7 @@ import { createNowPlayingButtons } from '../../utils/buttonBuilder';
 import { createSearchResultSelectMenu } from '../../utils/selectMenuBuilder';
 import { ValidationError, PlaybackError } from '../../utils/errorHandler';
 import { logger } from '../../utils/logger';
+import { styleResponse } from '../../utils/persona';
 
 export default {
   data: new SlashCommandBuilder()
@@ -40,7 +41,7 @@ export default {
 
     // Validate input
     if (!query) {
-      throw new ValidationError('Please provide a song name or YouTube URL');
+      throw new ValidationError(styleResponse('Please provide a song name or YouTube URL', 'error'));
     }
 
     // Get user's voice channel
@@ -176,7 +177,11 @@ export default {
     } else {
       const embed = createSongAddedEmbed(song, addResult.position!);
 
+    } else {
+      const embed = createSongAddedEmbed(song, addResult.position!);
+
       await interaction.editReply({
+        content: styleResponse(`Added to queue: ${song.title}`),
         embeds: [embed],
       });
     }
@@ -186,5 +191,5 @@ export default {
       song: song.title,
       source: song.source,
     });
-  },
+},
 };

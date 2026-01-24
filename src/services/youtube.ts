@@ -153,8 +153,22 @@ export async function getYouTubePlaylist(url: string, user: User): Promise<Song[
 
     return songs;
   } catch (error) {
+    logger.warn('Failed to fetch playlist, attempting fallback to single video', { url, error: (error as Error).message });
+
+    // Fallback: If playlist fails but has a video ID, return that single video
+    if (url.includes('v=')) {
+      try {
+        const video = await getYouTubeInfo(url);
+        if (video) {
+          return [video];
+        }
+      } catch (innerError) {
+        logger.error('Fallback video fetch failed', { error: (innerError as Error).message });
+      }
+    }
+
     logError(error as Error, { context: 'Failed to get YouTube playlist', url });
-    throw new PlaybackError('Failed to fetch playlist');
+    throw new PlaybackError('Failed to fetch playlist (and fallback failed)');
   }
 }
 

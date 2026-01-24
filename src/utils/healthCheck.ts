@@ -51,7 +51,12 @@ function serveStaticFile(res: http.ServerResponse, filePath: string, contentType
         res.end('Server Error');
       }
     } else {
-      res.writeHead(200, { 'Content-Type': contentType });
+      res.writeHead(200, {
+        'Content-Type': contentType,
+        'X-Content-Type-Options': 'nosniff',
+        'X-Frame-Options': 'DENY',
+        'Content-Security-Policy': "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:;",
+      });
       res.end(content, 'utf-8');
     }
   });
@@ -62,6 +67,11 @@ function serveStaticFile(res: http.ServerResponse, filePath: string, contentType
  */
 export function createHealthCheckServer(): http.Server {
   const server = http.createServer((req, res) => {
+    // Security Headers for all responses
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Content-Security-Policy', "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:;");
+
     const publicDir = path.join(process.cwd(), 'public');
 
     // API Endpoint

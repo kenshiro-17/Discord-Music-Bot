@@ -1,12 +1,13 @@
 import { Client, GatewayIntentBits, Collection } from 'discord.js';
 import { ExtendedClient, SearchResultCache } from './types';
-import { config, getConfigSummary } from './config/config';
+import { config, getConfigSummary, isSentryEnabled } from './config/config';
 import { logger, ensureLogsDirectory, logError } from './utils/logger';
 import { loadCommands, deployCommands } from './handlers/commandHandler';
 import { createHealthCheckServer, setStartTime } from './utils/healthCheck';
 import fs from 'fs';
 import path from 'path';
 import dns from 'dns';
+import * as Sentry from '@sentry/node';
 
 // Force IPv4 for DNS resolution to avoid issues with Discord Voice on dual-stack networks
 try {
@@ -130,6 +131,16 @@ async function start(): Promise<void> {
     // Log startup
     logger.info('Starting TC Discord Music Bot');
     logger.info('Configuration', getConfigSummary());
+
+    // Initialize Sentry if enabled
+    if (isSentryEnabled()) {
+      Sentry.init({
+        dsn: config.sentryDsn,
+        tracesSampleRate: 1.0,
+        environment: config.nodeEnv,
+      });
+      logger.info('Sentry initialized');
+    }
 
     // Initialize play-dl with cookies if provided
     // NOTE: play-dl uses cookies differently than ytdl-core

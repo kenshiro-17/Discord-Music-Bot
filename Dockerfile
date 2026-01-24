@@ -9,6 +9,15 @@ WORKDIR /app
 COPY package*.json ./
 COPY tsconfig.json ./
 
+# Install build dependencies
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    libtool \
+    autoconf \
+    automake
+
 # Install dependencies
 RUN npm ci
 
@@ -29,7 +38,10 @@ RUN apk add --no-cache \
     python3 \
     make \
     g++ \
-    curl
+    curl \
+    libtool \
+    autoconf \
+    automake
 
 # Install yt-dlp (latest)
 RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp && \

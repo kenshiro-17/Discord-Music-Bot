@@ -31,6 +31,10 @@ RUN apk add --no-cache \
     g++ \
     curl
 
+# Install yt-dlp (latest)
+RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp && \
+    chmod a+rx /usr/local/bin/yt-dlp
+
 # Create non-root user
 RUN addgroup -g 1001 -S tc && \
     adduser -S tc -u 1001

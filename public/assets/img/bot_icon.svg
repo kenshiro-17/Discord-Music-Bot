@@ -1,0 +1,43 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@900&amp;display=swap');
+    </style>
+    <linearGradient id="mainGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#5865F2" />
+      <stop offset="100%" stop-color="#EB459E" />
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Background Circle (Dark) -->
+  <circle cx="256" cy="256" r="240" fill="#0F0F0F" />
+  
+  <!-- Hexagon Border -->
+  <path d="M256 36 L446 146 L446 366 L256 476 L66 366 L66 146 Z" fill="none" stroke="url(#mainGradient)" stroke-width="12" filter="url(#glow)" />
+  
+  <!-- Headphones -->
+  <!-- Headband -->
+  <path d="M156 256 C156 180 356 180 356 256" stroke="#FFFFFF" stroke-width="24" stroke-linecap="round" fill="none" />
+  
+  <!-- Left Ear Cup -->
+  <rect x="136" y="236" width="40" height="80" rx="10" fill="url(#mainGradient)" />
+  <!-- Right Ear Cup -->
+  <rect x="336" y="236" width="40" height="80" rx="10" fill="url(#mainGradient)" />
+  
+  <!-- Digital Waveform (Nerdy/Music) -->
+  <rect x="206" y="300" width="16" height="40" rx="4" fill="#5865F2" />
+  <rect x="230" y="280" width="16" height="60" rx="4" fill="#EB459E" />
+  <rect x="254" y="260" width="16" height="80" rx="4" fill="#FFFFFF" />
+  <rect x="278" y="280" width="16" height="60" rx="4" fill="#EB459E" />
+  <rect x="302" y="300" width="16" height="40" rx="4" fill="#5865F2" />
+  
+  <!-- Code/Terminal Accent -->
+  <text x="256" y="420" font-family="'Orbitron', sans-serif" font-size="52" fill="#FFFFFF" text-anchor="middle" font-weight="900" letter-spacing="3" filter="url(#glow)">THANKAN</text>
+</svg>

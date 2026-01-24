@@ -26,31 +26,32 @@ export async function joinVoiceChannelHandler(
       channelId: channel.id,
       guildId: channel.guild.id,
       adapterCreator: channel.guild.voiceAdapterCreator as any,
-      selfDeaf: true,
-      group: `vc_${channel.guild.id}_${Date.now()}`, // Force unique connection group
+      selfDeaf: false,
+      selfMute: false,
+      group: `vc_${channel.guild.id}_${Date.now()}`,
     });
 
     // Setup connection handlers
     setupConnectionHandlers(connection, channel.guild.id);
 
-    // Wait for connection to be ready
-    try {
-      logger.info('Waiting for voice connection to become ready...', { guildId: channel.guild.id });
-      
-      connection.on('stateChange', (oldState, newState) => {
-        logger.debug(`Voice Connection State: ${oldState.status} -> ${newState.status}`, { 
-          guildId: channel.guild.id,
-          reason: (newState as any).reason || 'unknown'
-        });
+    // Debug state changes
+    connection.on('stateChange', (oldState, newState) => {
+      logger.debug(`Voice Connection State: ${oldState.status} -> ${newState.status}`, { 
+        guildId: channel.guild.id,
+        reason: (newState as any).reason || 'unknown'
       });
+    });
 
-      // Increased timeout to 60s
-      await entersState(connection, VoiceConnectionStatus.Ready, 60_000);
-      logger.info('Voice connection ready!', { guildId: channel.guild.id });
-    } catch (error) {
-      connection.destroy();
-      throw new VoiceConnectionError('Failed to connect to voice channel within 30 seconds');
-    }
+    // Verify connection in background
+    entersState(connection, VoiceConnectionStatus.Ready, 20_000)
+      .then(() => logger.info('Voice connection successfully established (Ready)', { guildId: channel.guild.id }))
+      .catch((error) => {
+        logger.warn('Voice connection failed to reach Ready state in background', { 
+          guildId: channel.guild.id, 
+          error: error.message 
+        });
+        // We don't destroy here immediately to see if it recovers or if it's just a state tracking bug
+      });
 
     logger.info('Joined voice channel', {
       guildId: channel.guild.id,

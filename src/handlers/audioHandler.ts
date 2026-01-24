@@ -85,13 +85,21 @@ async function handleSongEnd(guildId: string): Promise<void> {
 /**
  * Creates audio resource from song
  */
+import { parseCookies } from '../utils/cookieParser';
+
 // Initialize YTDL agent with cookies if available
 let agent: any;
 try {
   if (config.youtubeCookies) {
-    const cookies = JSON.parse(config.youtubeCookies);
-    agent = ytdl.createAgent(cookies);
-    logger.info('YTDL agent initialized with cookies');
+    const cookies = parseCookies(config.youtubeCookies);
+    if (cookies && cookies.length > 0) {
+      agent = ytdl.createAgent(cookies);
+      logger.info('YTDL agent initialized successfully with cookies', { count: cookies.length });
+    } else {
+      logger.warn('YTDL agent: Cookies provided but failed to parse. Playback may fail (403).');
+    }
+  } else {
+    logger.warn('YTDL agent: No cookies provided. Playback may fail (403) for restricted videos.');
   }
 } catch (error) {
   logger.warn('Failed to initialize YTDL agent with cookies', { error: (error as Error).message });

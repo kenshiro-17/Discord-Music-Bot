@@ -16,6 +16,7 @@ function createClient(): Client & ExtendedClient {
       GatewayIntentBits.Guilds,
       GatewayIntentBits.GuildVoiceStates,
       GatewayIntentBits.GuildMessages,
+      GatewayIntentBits.MessageContent,
     ],
   }) as Client & ExtendedClient;
 

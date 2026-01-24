@@ -1,7 +1,7 @@
 # Multi-stage build for optimized production image
 
 # Builder stage
-FROM node:22-alpine AS builder
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
@@ -9,14 +9,11 @@ WORKDIR /app
 COPY package*.json ./
 COPY tsconfig.json ./
 
-# Install build dependencies
+# Install build dependencies (minimal)
 RUN apk add --no-cache \
     python3 \
     make \
-    g++ \
-    libtool \
-    autoconf \
-    automake
+    g++
 
 # Install dependencies
 RUN npm ci
@@ -28,20 +25,14 @@ COPY src ./src
 RUN npm run build
 
 # Production stage
-FROM node:22-alpine
+FROM node:20-alpine
 
 WORKDIR /app
 
 # Install ffmpeg and other dependencies
 RUN apk add --no-cache \
     ffmpeg \
-    python3 \
-    make \
-    g++ \
-    curl \
-    libtool \
-    autoconf \
-    automake
+    curl
 
 # Install yt-dlp (latest)
 RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp && \

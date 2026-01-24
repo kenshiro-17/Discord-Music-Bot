@@ -2,6 +2,7 @@ import winston from 'winston';
 import DailyRotateFile from 'winston-daily-rotate-file';
 import { config, isProduction } from '../config/config';
 import path from 'path';
+import fs from 'fs';
 
 /**
  * Custom log format
@@ -111,7 +112,6 @@ export function logError(
  * Create logs directory if it doesn't exist
  */
 export function ensureLogsDirectory(): void {
-  const fs = require('fs');
   const logsDir = path.join(process.cwd(), 'logs');
 
   if (!fs.existsSync(logsDir)) {

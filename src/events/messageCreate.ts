@@ -28,7 +28,7 @@ export default {
 
             // We will call a unified play handler. 
             // I will create `src/handlers/messageCommandHandler.ts` to handle this logic cleanly.
-            const { handleMessagePlay } = require('../handlers/messageCommandHandler');
+            const { handleMessagePlay } = await import('../handlers/messageCommandHandler');
             await handleMessagePlay(message, query);
 
         } catch (error) {

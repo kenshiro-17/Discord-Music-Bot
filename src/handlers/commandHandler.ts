@@ -27,7 +27,7 @@ export async function loadCommands(client: Client & ExtendedClient): Promise<voi
       const filePath = path.join(folderPath, file);
 
       try {
-        const command = require(filePath).default;
+        const command = (await import(filePath)).default;
 
         if ('data' in command && 'execute' in command) {
           client.commands.set(command.data.name, command);
@@ -66,7 +66,7 @@ export async function deployCommands(guildId?: string): Promise<void> {
       const filePath = path.join(folderPath, file);
 
       try {
-        const command = require(filePath).default;
+        const command = (await import(filePath)).default;
 
         if ('data' in command) {
           commands.push(command.data.toJSON());

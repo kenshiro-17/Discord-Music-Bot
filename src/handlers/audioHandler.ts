@@ -86,17 +86,8 @@ async function handleSongEnd(guildId: string): Promise<void> {
  */
 async function createAudioResourceFromSong(song: Song, volume: number): Promise<AudioResource> {
   try {
-    let resource: AudioResource;
-
-    // Create resource from YouTube URL
-    logger.info('Creating stream for song', { url: song.url, type: typeof song.url });
-
-    if (!song.url || !play.yt_validate(song.url)) {
-      throw new Error(`Invalid YouTube URL: ${song.url}`);
-    }
-
     const stream = await play.stream(song.url, { discordPlayerCompatibility: true });
-    resource = createAudioResource(stream.stream, {
+    const resource = createAudioResource(stream.stream, {
       inputType: stream.type,
       inlineVolume: true,
     });

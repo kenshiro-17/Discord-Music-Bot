@@ -41,7 +41,8 @@ async function loadEvents(client: Client): Promise<void> {
     const filePath = path.join(eventsPath, file);
 
     try {
-      const event = require(filePath).default;
+      const module = await import(filePath);
+      const event = module.default;
 
       if (event.once) {
         client.once(event.name, (...args) => event.execute(...args));
@@ -67,7 +68,7 @@ function setupGracefulShutdown(client: Client): void {
 
     try {
       // Destroy all voice connections
-      const { getAllQueues } = require('./handlers/queueManager');
+      const { getAllQueues } = await import('./handlers/queueManager');
       const queues = getAllQueues() as Collection<string, any>;
 
       for (const [_, queue] of queues) {
@@ -123,7 +124,7 @@ async function start(): Promise<void> {
     // Initialize play-dl with cookies if provided
     if (config.youtubeCookies) {
       try {
-        const play = require('play-dl');
+        const play = (await import('play-dl')).default || (await import('play-dl'));
         await play.setToken({ youtube: { cookie: config.youtubeCookies } });
         logger.info('YouTube cookies loaded successfully');
       } catch (error) {
@@ -148,7 +149,7 @@ async function start(): Promise<void> {
     await loadEvents(client);
 
     // Log voice dependency report for debugging
-    const { generateDependencyReport } = require('@discordjs/voice');
+    const { generateDependencyReport } = await import('@discordjs/voice');
     logger.info('Voice Dependency Report:\n' + generateDependencyReport());
 
     // Login to Discord

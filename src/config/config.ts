@@ -1,5 +1,4 @@
-// I will update types/index.ts in the next step.
-
+import dotenv from 'dotenv';
 import { BotConfig } from '../types';
 
 // Load environment variables

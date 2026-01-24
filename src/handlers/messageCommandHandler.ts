@@ -1,4 +1,4 @@
-import { Message } from 'discord.js';
+import { Message, TextChannel } from 'discord.js';
 import playCommand from '../commands/music/play';
 import { logger, logError } from '../utils/logger';
 import { styleResponse } from '../utils/persona';
@@ -39,13 +39,13 @@ export async function handleMessagePlay(message: Message, query: string): Promis
             // If content is an embed, we send it.
             // If it's a string, we send it.
             if (message.channel && message.channel.isTextBased()) {
-                await message.channel.send(content);
+                await (message.channel as TextChannel).send(content);
             }
             return { id: message.id }; // Return fake message
         },
         followUp: async (content: any) => {
             if (message.channel && message.channel.isTextBased()) {
-                await message.channel.send(content);
+                await (message.channel as TextChannel).send(content);
             }
             return { id: message.id };
         }

@@ -11,6 +11,7 @@ import { PlaybackError } from '../utils/errorHandler';
 import { getQueue, skip, stop as stopQueue } from './queueManager';
 import { startInactivityTimer } from './voiceManager';
 import play from 'play-dl';
+import ytdl from '@distube/ytdl-core';
 
 
 /**
@@ -89,11 +90,16 @@ async function createAudioResourceFromSong(song: Song, volume: number): Promise<
     // Verify URL validity first (though should be validated before addition)
     if (!song.url) throw new Error('No URL provided for song');
 
-    // Robust stream creation (fetch info first, then stream from info)
-    const info = await play.video_info(song.url);
-    const stream = await play.stream_from_info(info, { discordPlayerCompatibility: true });
-    const resource = createAudioResource(stream.stream, {
-      inputType: stream.type,
+    // Use @distube/ytdl-core for robust streaming
+    const stream = ytdl(song.url, {
+      filter: 'audioonly',
+      highWaterMark: 1 << 25, // 32MB buffer
+      quality: 'highestaudio',
+      dlChunkSize: 0, // Disable chunking for stability
+    });
+
+    const resource = createAudioResource(stream, {
+      inputType: undefined, // ytdl returns a readable stream, let discord.js probe it (or force 'arbitrary' if needed, but undefined/StreamType.Arbitrary is default)
       inlineVolume: true,
     });
 

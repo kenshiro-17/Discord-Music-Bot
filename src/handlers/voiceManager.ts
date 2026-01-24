@@ -7,7 +7,6 @@ import {
 } from '@discordjs/voice';
 import { VoiceChannel } from 'discord.js';
 import { logger, logError } from '../utils/logger';
-import { VoiceConnectionError } from '../utils/errorHandler';
 import { getQueue, deleteQueue } from './queueManager';
 
 /**

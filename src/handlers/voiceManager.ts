@@ -26,6 +26,7 @@ export async function joinVoiceChannelHandler(
       channelId: channel.id,
       guildId: channel.guild.id,
       adapterCreator: channel.guild.voiceAdapterCreator as any,
+      selfDeaf: true,
     });
 
     // Setup connection handlers

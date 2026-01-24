@@ -2,7 +2,7 @@ import { SlashCommandBuilder, ChatInputCommandInteraction } from 'discord.js';
 import { getQueue } from '../../handlers/queueManager';
 import { validateMusicCommand } from '../../utils/validators';
 import { createQueueEmbed } from '../../utils/embedBuilder';
-import { createPaginationButtons } from '../../utils/buttonBuilder';
+import { createPaginationButtons, createNowPlayingButtons } from '../../utils/buttonBuilder';
 import { ValidationError } from '../../utils/errorHandler';
 
 export default {
@@ -34,11 +34,19 @@ export default {
     }
 
     const embed = createQueueEmbed(queue!, page);
-    const buttons = totalPages > 1 ? [createPaginationButtons(page, totalPages)] : [];
+    
+    const components: any[] = [];
+    
+    if (totalPages > 1) {
+        components.push(createPaginationButtons(page, totalPages));
+    }
+    
+    // Add playback controls
+    components.push(createNowPlayingButtons(!queue!.playing, queue!.loop));
 
     await interaction.reply({
       embeds: [embed],
-      components: buttons,
+      components: components,
     });
   },
 };

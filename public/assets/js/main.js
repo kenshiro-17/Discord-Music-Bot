@@ -35,18 +35,38 @@ document.querySelectorAll('.feature-card, .command-category, .step, .support-car
     observer.observe(el);
 });
 
-// Update server count dynamically (optional - connect to your API)
+// Update server count dynamically
 async function updateServerCount() {
     try {
-        // Replace with your actual API endpoint if you have one
-        // const response = await fetch('https://your-api.com/stats');
-        // const data = await response.json();
-        // document.getElementById('serverCount').textContent = data.serverCount + '+';
+        const response = await fetch('/health');
+        if (response.ok) {
+            const data = await response.json();
+            // We don't have server count in /health yet (only uptime, queues)
+            // Let's assume activeQueues ~ active servers usage
+            // Or just keep the dummy for now, or update healthCheck.ts to expose guild count.
+            // healthCheck.ts exposes: uptime, activeQueues, memory.
+            // I'll use activeQueues for "Active Sessions".
+            
+            const statsContainer = document.querySelector('.hero-stats');
+            if (statsContainer) {
+                // Update Uptime
+                const uptimeEl = statsContainer.querySelector('.stat:nth-child(2) .stat-number');
+                if (uptimeEl) {
+                    const hours = Math.floor(data.uptime / 3600);
+                    uptimeEl.textContent = `${hours}h`;
+                }
 
-        // For now, just animate the existing number
-        animateNumber('serverCount', 1000, 2000);
+                // Update Active Queues
+                const queuesEl = statsContainer.querySelector('.stat:nth-child(1) .stat-number');
+                if (queuesEl) {
+                    queuesEl.textContent = data.activeQueues;
+                    const label = statsContainer.querySelector('.stat:nth-child(1) .stat-label');
+                    if (label) label.textContent = 'Active Sessions';
+                }
+            }
+        }
     } catch (error) {
-        console.log('Could not fetch server count');
+        console.log('Could not fetch stats');
     }
 }
 

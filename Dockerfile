@@ -44,8 +44,8 @@ RUN npm ci --only=production
 # Copy built files from builder
 COPY --from=builder /app/dist ./dist
 
-# Create logs directory
-RUN mkdir -p logs && chown -R tc:tc logs
+# Create logs directory and ensure app permissions for ytdl cache
+RUN mkdir -p logs && chown -R tc:tc /app
 
 # Switch to non-root user
 USER tc

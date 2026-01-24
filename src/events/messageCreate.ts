@@ -2,6 +2,9 @@ import { Events, Message } from 'discord.js';
 import { logError } from '../utils/logger';
 import { MUSIC_CHANNEL_NAME } from './guildCreate';
 
+const cooldowns = new Map<string, number>();
+const COOLDOWN_DURATION = 3000; // 3 seconds
+
 export default {
     name: Events.MessageCreate,
     async execute(message: Message) {
@@ -14,9 +17,14 @@ export default {
         const query = message.content.trim();
         if (!query) return;
 
-
-
-
+        // Rate limiting
+        const now = Date.now();
+        const lastMessage = cooldowns.get(message.author.id);
+        if (lastMessage && now - lastMessage < COOLDOWN_DURATION) {
+            await message.react('⏳'); // Indicate cooldown
+            return;
+        }
+        cooldowns.set(message.author.id, now);
 
         try {
             // Validation: User must be in VC

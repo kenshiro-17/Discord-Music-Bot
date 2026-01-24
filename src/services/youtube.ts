@@ -95,6 +95,7 @@ export async function getYouTubeInfo(url: string): Promise<Song | null> {
     const { stdout } = await execFileAsync('yt-dlp', [
       '--dump-json',
       '--no-warnings',
+      '--',
       url
     ]);
 
@@ -131,6 +132,7 @@ export async function getYouTubePlaylist(url: string, user: User): Promise<Song[
       '--flat-playlist',
       '--playlist-end', '100',
       '--no-warnings',
+      '--',
       url
     ], { maxBuffer: 10 * 1024 * 1024 }); // 10MB buffer
 

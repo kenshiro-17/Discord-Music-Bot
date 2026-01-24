@@ -27,6 +27,7 @@ function createClient(): Client & ExtendedClient {
       GatewayIntentBits.GuildMessages,
       GatewayIntentBits.MessageContent,
     ],
+    allowedMentions: { parse: ['users'], repliedUser: false },
   }) as Client & ExtendedClient;
 
   // Initialize collections

@@ -5,8 +5,48 @@ import { logger, logError } from '../utils/logger';
 import { PlaybackError } from '../utils/errorHandler';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
+import * as fs from 'fs';
+import * as path from 'path';
+import { config } from '../config/config';
 
 const execFileAsync = promisify(execFile);
+
+// Cookie handling
+const COOKIES_PATH = path.join(process.cwd(), 'cookies.txt');
+
+// Determine yt-dlp path based on platform
+const isWindows = process.platform === 'win32';
+const YT_DLP_PATH = isWindows 
+  ? path.join(process.cwd(), 'bin', 'yt-dlp.exe') 
+  : 'yt-dlp'; // On Linux (Railway), assume it's in PATH via nixpacks
+
+// Ensure cookies file exists if env var is provided
+if (config.youtubeCookies && !fs.existsSync(COOKIES_PATH)) {
+  try {
+    fs.writeFileSync(COOKIES_PATH, config.youtubeCookies);
+    logger.info('Created cookies.txt from environment variable');
+  } catch (error) {
+    logger.error('Failed to create cookies.txt', { error });
+  }
+}
+
+/**
+ * Helper to get default yt-dlp arguments
+ */
+function getYtDlpArgs(): string[] {
+  const args = [
+    '--no-warnings',
+    '--no-check-certificate',
+    '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    '--referer', 'https://www.youtube.com/',
+  ];
+
+  if (fs.existsSync(COOKIES_PATH)) {
+    args.push('--cookies', COOKIES_PATH);
+  }
+
+  return args;
+}
 
 /**
  * Search cache to avoid repeated searches
@@ -25,6 +65,14 @@ const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 export async function initializePlayDl(): Promise<void> {
   try {
     // play-dl will auto-initialize, but we can set user agent if needed
+    if (fs.existsSync(COOKIES_PATH)) {
+        // play-dl currently doesn't support reading cookies.txt file directly via a simple API in all versions, 
+        // but let's try to set it if we can parse it, or rely on yt-dlp for playback which we are doing.
+        // For search, play-dl might still block.
+        // We can't easily parse cookies.txt into the format play-dl wants without a parser.
+        // But since we use yt-dlp for the critical playback part (getYouTubeInfo), we are mostly covered.
+        // Search usually works better than playback regarding bot checks.
+    }
     logger.info('play-dl initialized');
   } catch (error) {
     logError(error as Error, { context: 'Failed to initialize play-dl' });
@@ -88,17 +136,19 @@ export async function searchYouTube(query: string, limit: number = 5): Promise<Y
 /**
  * Gets YouTube video information
  */
-export async function getYouTubeInfo(url: string): Promise<Song | null> {
+  export async function getYouTubeInfo(url: string): Promise<Song | null> {
   try {
     logger.debug('Fetching video info with yt-dlp', { url });
 
-    const { stdout } = await execFileAsync('yt-dlp', [
+    const args = [
+      ...getYtDlpArgs(),
       '--dump-json',
-      '--no-warnings',
       '--socket-timeout', '10',
       '--',
       url
-    ], { timeout: 30000 }); // 30s timeout
+    ];
+
+    const { stdout } = await execFileAsync(YT_DLP_PATH, args, { timeout: 30000 }); // 30s timeout
 
     const video = JSON.parse(stdout);
 
@@ -124,19 +174,21 @@ export async function getYouTubeInfo(url: string): Promise<Song | null> {
 /**
  * Gets all videos from a YouTube playlist
  */
-export async function getYouTubePlaylist(url: string, user: User): Promise<Song[]> {
+  export async function getYouTubePlaylist(url: string, user: User): Promise<Song[]> {
   try {
     logger.debug('Fetching playlist with yt-dlp', { url });
 
-    const { stdout } = await execFileAsync('yt-dlp', [
+    const args = [
+      ...getYtDlpArgs(),
       '--dump-single-json',
       '--flat-playlist',
       '--playlist-end', '100',
-      '--no-warnings',
       '--socket-timeout', '10',
       '--',
       url
-    ], { maxBuffer: 10 * 1024 * 1024, timeout: 30000 }); // 10MB buffer, 30s timeout
+    ];
+
+    const { stdout } = await execFileAsync(YT_DLP_PATH, args, { maxBuffer: 10 * 1024 * 1024, timeout: 30000 }); // 10MB buffer, 30s timeout
 
     const playlistData = JSON.parse(stdout);
 

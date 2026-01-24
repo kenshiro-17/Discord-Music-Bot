@@ -3,13 +3,14 @@ import { Song, ServerQueue, YouTubeSearchResult } from '../types';
 import { getThankanQuote } from './persona';
 
 /**
- * Color constants for embeds
+ * Color constants for embeds (Spotify Theme)
  */
 export const Colors = {
-  PRIMARY: 0x5865f2,
-  SUCCESS: 0x57f287,
-  ERROR: 0xed4245,
-  WARNING: 0xfee75c,
+  PRIMARY: 0x1db954, // Spotify Green
+  SUCCESS: 0x1db954, // Spotify Green
+  ERROR: 0xe91429,   // Spotify Red (Error)
+  WARNING: 0xffa42b, // Warning Orange
+  DARK: 0x191414,    // Spotify Black
 } as const;
 
 /**
@@ -73,21 +74,22 @@ export function createSongAddedEmbed(song: Song, position: number): EmbedBuilder
  * Creates embed for now playing
  */
 export function createNowPlayingEmbed(song: Song, queue: ServerQueue, currentTime: number = 0): EmbedBuilder {
-  const progressBar = createProgressBar(currentTime, song.duration);
+  const progressBar = createProgressBar(currentTime, song.duration, 15);
   const timeDisplay = `${formatDuration(currentTime)} / ${formatDuration(song.duration)}`;
 
   const embed = new EmbedBuilder()
     .setColor(Colors.PRIMARY)
-    .setTitle('🎵 Thankan Chettan Vibe')
-    .setDescription(`**[${truncate(song.title, 80)}](${song.url})**`)
+    .setAuthor({ name: 'Now Playing', iconURL: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/19/Spotify_logo_without_text.svg/2048px-Spotify_logo_without_text.svg.png' })
+    .setTitle(truncate(song.title, 80))
+    .setURL(song.url)
+    .setDescription(`by **${song.source === 'youtube' ? 'YouTube' : 'Unknown Artist'}**\n\n${progressBar} \`[${timeDisplay}]\``)
     .setThumbnail(song.thumbnail)
     .addFields(
-      { name: 'Duration', value: formatDuration(song.duration), inline: true },
       { name: 'Volume', value: `${queue.volume}%`, inline: true },
       { name: 'Loop', value: queue.loop === 'off' ? 'Off' : queue.loop === 'song' ? 'Song' : 'Queue', inline: true },
-      { name: 'Progress', value: `${progressBar}\n${timeDisplay}`, inline: false }
+      { name: 'Requested by', value: `${song.requestedBy}`, inline: true }
     )
-    .setFooter({ text: `Requested by ${song.requestedBy.username} | ${getThankanQuote()}` })
+    .setFooter({ text: `Thankan Music • ${getThankanQuote()}` })
     .setTimestamp();
 
   return embed;

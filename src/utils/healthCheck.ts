@@ -51,8 +51,10 @@ export function createHealthCheckServer(): http.Server {
     }
   });
 
-  server.listen(8080, '0.0.0.0', () => {
-    logger.info('Health check server listening on port 8080');
+  const port = parseInt(process.env.HEALTH_CHECK_PORT || '8080', 10);
+
+  server.listen(port, '0.0.0.0', () => {
+    logger.info(`Health check server listening on port ${port}`);
   });
 
   return server;

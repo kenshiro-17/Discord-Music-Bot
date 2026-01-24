@@ -165,7 +165,8 @@ async function start(): Promise<void> {
     await loadEvents(client);
 
     // Log voice dependency report for debugging
-    const { generateDependencyReport } = await import('@discordjs/voice');
+    const { generateDependencyReport, version } = await import('@discordjs/voice');
+    logger.info(`Voice Lib Version: ${version}`);
     logger.info('Voice Dependency Report:\n' + generateDependencyReport());
 
     // Login to Discord

@@ -21,13 +21,22 @@ export async function joinVoiceChannelHandler(
   channel: VoiceChannel
 ): Promise<VoiceConnection> {
   try {
+    // Cleanup any existing connection first to ensure clean state
+    const existingConnection = getVoiceConnection(channel.guild.id);
+    if (existingConnection) {
+        try {
+            existingConnection.destroy();
+        } catch (e) {
+            // Ignore error if already destroyed
+        }
+    }
+
     const connection = joinVoiceChannel({
       channelId: channel.id,
       guildId: channel.guild.id,
       adapterCreator: channel.guild.voiceAdapterCreator as any,
       selfDeaf: false,
       selfMute: false,
-      group: `vc_${channel.guild.id}_${Date.now()}`,
     });
 
     // Setup connection handlers

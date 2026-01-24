@@ -87,7 +87,11 @@ async function createAudioResourceFromSong(song: Song, volume: number): Promise<
     let resource: AudioResource;
 
     // Create resource from YouTube URL
-    const stream = await play.stream(song.url);
+    if (!song.url || !play.yt_validate(song.url)) {
+      throw new Error(`Invalid YouTube URL: ${song.url}`);
+    }
+
+    const stream = await play.stream(song.url, { discordPlayerCompatibility: true });
     resource = createAudioResource(stream.stream, {
       inputType: stream.type,
       inlineVolume: true,
@@ -151,9 +155,11 @@ export async function playSong(guildId: string): Promise<void> {
       song: song.title,
     });
 
-    queue.textChannel
-      .send(`Failed to play **${song.title}**. Skipping to next song...`)
-      .catch((e) => logError(e as Error, { context: 'Failed to send error message' }));
+    if (queue && queue.textChannel) {
+      queue.textChannel
+        .send(`Failed to play **${song.title}**. Skipping to next song...`)
+        .catch((e) => logError(e as Error, { context: 'Failed to send error message' }));
+    }
 
     // Try to play next song
     handleSongEnd(guildId);

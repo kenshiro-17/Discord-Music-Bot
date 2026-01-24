@@ -6,6 +6,7 @@ import {
   AudioResource,
 } from '@discordjs/voice';
 import { Song } from '../types';
+import { config } from '../config/config';
 import { logger, logError } from '../utils/logger';
 import { PlaybackError } from '../utils/errorHandler';
 import { getQueue, skip, stop as stopQueue } from './queueManager';
@@ -84,21 +85,37 @@ async function handleSongEnd(guildId: string): Promise<void> {
 /**
  * Creates audio resource from song
  */
+// Initialize YTDL agent with cookies if available
+let agent: any;
+try {
+  if (config.youtubeCookies) {
+    const cookies = JSON.parse(config.youtubeCookies);
+    agent = ytdl.createAgent(cookies);
+    logger.info('YTDL agent initialized with cookies');
+  }
+} catch (error) {
+  logger.warn('Failed to initialize YTDL agent with cookies', { error: (error as Error).message });
+}
+
+/**
+ * Creates audio resource from song
+ */
 async function createAudioResourceFromSong(song: Song, volume: number): Promise<AudioResource> {
   try {
-    // Verify URL validity first (though should be validated before addition)
+    // Verify URL validity first
     if (!song.url) throw new Error('No URL provided for song');
 
-    // Use @distube/ytdl-core for robust streaming
+    // Use @distube/ytdl-core for robust streaming with agent
     const stream = ytdl(song.url, {
       filter: 'audioonly',
       highWaterMark: 1 << 25, // 32MB buffer
       quality: 'highestaudio',
       dlChunkSize: 0, // Disable chunking for stability
+      agent, // Inject the agent with cookies
     });
 
     const resource = createAudioResource(stream, {
-      inputType: undefined, // ytdl returns a readable stream, let discord.js probe it (or force 'arbitrary' if needed, but undefined/StreamType.Arbitrary is default)
+      inputType: undefined,
       inlineVolume: true,
     });
 

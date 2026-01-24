@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, PermissionFlagsBits, ChatInputCommandInteraction, ChannelType } from 'discord.js';
-import { MUSIC_CHANNEL_NAME } from '../../events/guildCreate';
+import { DEFAULT_MUSIC_CHANNEL } from '../../events/guildCreate';
 import { logger } from '../../utils/logger';
 
 export default {
@@ -16,7 +16,7 @@ export default {
         try {
             // Check if channel already exists
             const existingChannel = interaction.guild.channels.cache.find(
-                (channel) => channel.name === MUSIC_CHANNEL_NAME && channel.type === ChannelType.GuildText
+                (channel) => channel.name === DEFAULT_MUSIC_CHANNEL && channel.type === ChannelType.GuildText
             );
 
             if (existingChannel) {
@@ -26,7 +26,7 @@ export default {
 
             // Create the channel
             const channel = await interaction.guild.channels.create({
-                name: MUSIC_CHANNEL_NAME,
+                name: DEFAULT_MUSIC_CHANNEL,
                 type: ChannelType.GuildText,
                 topic: '🎵 Music requests channel. Type a song name or paste a link to play!',
                 permissionOverwrites: [

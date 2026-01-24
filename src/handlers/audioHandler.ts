@@ -10,7 +10,6 @@ import { logger, logError } from '../utils/logger';
 import { PlaybackError } from '../utils/errorHandler';
 import { getQueue, skip, stop as stopQueue } from './queueManager';
 import { startInactivityTimer } from './voiceManager';
-import play from 'play-dl';
 import ytdl from '@distube/ytdl-core';
 
 

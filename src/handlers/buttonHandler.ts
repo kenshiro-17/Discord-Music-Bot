@@ -33,8 +33,8 @@ export async function handleButtonInteraction(interaction: ButtonInteraction): P
   // Handle different button types
   if (customId === 'music_playpause') {
     await handlePlayPause(interaction, queue!);
-  } else if (customId === 'music_skip') {
-    await handleSkip(interaction, queue!);
+  } else if (customId === 'music_next') {
+    await handleNext(interaction, queue!);
   } else if (customId === 'music_previous') {
     await handlePrevious(interaction, queue!);
   } else if (customId === 'music_stop') {
@@ -78,9 +78,9 @@ async function handlePlayPause(interaction: ButtonInteraction, queue: any): Prom
 }
 
 /**
- * Handles skip button
+ * Handles next button
  */
-async function handleSkip(interaction: ButtonInteraction, queue: any): Promise<void> {
+async function handleNext(interaction: ButtonInteraction, queue: any): Promise<void> {
   const skipResult = skipSong(interaction.guildId!);
 
   if (skipResult.shouldStop) {

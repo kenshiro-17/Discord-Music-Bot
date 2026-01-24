@@ -16,8 +16,8 @@ export function createPlaybackButtons(isPaused: boolean = false): ActionRowBuild
       .setEmoji(isPaused ? '▶️' : '⏸️')
       .setStyle(ButtonStyle.Primary),
     new ButtonBuilder()
-      .setCustomId('music_skip')
-      .setLabel('Skip')
+      .setCustomId('music_next')
+      .setLabel('Next')
       .setEmoji('⏭️')
       .setStyle(ButtonStyle.Primary),
     new ButtonBuilder()

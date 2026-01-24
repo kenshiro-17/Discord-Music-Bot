@@ -6,13 +6,11 @@ import {
   AudioResource,
 } from '@discordjs/voice';
 import { Song } from '../types';
-import { config } from '../config/config';
 import { logger, logError } from '../utils/logger';
 import { PlaybackError } from '../utils/errorHandler';
 import { getQueue, skip, stop as stopQueue } from './queueManager';
 import { startInactivityTimer } from './voiceManager';
-import ytdl from '@distube/ytdl-core';
-
+import play from 'play-dl';
 
 /**
  * Creates and configures an audio player
@@ -85,61 +83,18 @@ async function handleSongEnd(guildId: string): Promise<void> {
 /**
  * Creates audio resource from song
  */
-import { parseCookies } from '../utils/cookieParser';
-
-// Modern browser User-Agent to avoid bot detection
-const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
-
-// Initialize YTDL agent with cookies if available
-let agent: any;
-try {
-  if (config.youtubeCookies) {
-    const cookies = parseCookies(config.youtubeCookies);
-    if (cookies && cookies.length > 0) {
-      agent = ytdl.createAgent(cookies);
-      logger.info('YTDL agent initialized successfully with cookies', { count: cookies.length });
-    } else {
-      logger.warn('YTDL agent: Cookies provided but failed to parse. Playback may fail (403).');
-      logger.warn('Please export cookies using "Get cookies.txt LOCALLY" browser extension');
-    }
-  } else {
-    logger.warn('YTDL agent: No cookies provided. Playback may fail (403) for restricted videos.');
-    logger.warn('Set YOUTUBE_COOKIES in .env to fix 403 errors. Export cookies from YouTube using a browser extension.');
-  }
-} catch (error) {
-  logger.warn('Failed to initialize YTDL agent with cookies', { error: (error as Error).message });
-}
-
-/**
- * Creates audio resource from song
- */
 async function createAudioResourceFromSong(song: Song, volume: number): Promise<AudioResource> {
   try {
     // Verify URL validity first
     if (!song.url) throw new Error('No URL provided for song');
 
-    // Use @distube/ytdl-core for robust streaming with agent
-    const stream = ytdl(song.url, {
-      filter: 'audioonly',
-      highWaterMark: 1 << 25, // 32MB buffer
-      quality: 'highestaudio',
-      dlChunkSize: 0, // Disable chunking for stability
-      agent, // Inject the agent with cookies
-      requestOptions: {
-        headers: {
-          'User-Agent': USER_AGENT,
-          'Accept-Language': 'en-US,en;q=0.9',
-          'Accept-Encoding': 'gzip, deflate',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Connection': 'keep-alive',
-        },
-      },
-    });
+    // Use play-dl for streaming
+    // It automatically handles cookies if they were set in index.ts
+    const stream = await play.stream(song.url);
 
-    const resource = createAudioResource(stream, {
-      inputType: undefined,
+    const resource = createAudioResource(stream.stream, {
+      inputType: stream.type,
       inlineVolume: true,
-      // Add FFmpeg args for reconnection and stability
       metadata: {
         title: song.title,
       },

@@ -6,6 +6,11 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 export function createPlaybackButtons(isPaused: boolean = false): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
+      .setCustomId('music_previous')
+      .setLabel('Previous')
+      .setEmoji('⏮️')
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
       .setCustomId('music_playpause')
       .setLabel(isPaused ? 'Resume' : 'Pause')
       .setEmoji(isPaused ? '▶️' : '⏸️')
@@ -19,7 +24,12 @@ export function createPlaybackButtons(isPaused: boolean = false): ActionRowBuild
       .setCustomId('music_stop')
       .setLabel('Stop')
       .setEmoji('⏹️')
-      .setStyle(ButtonStyle.Danger)
+      .setStyle(ButtonStyle.Danger),
+    new ButtonBuilder()
+      .setCustomId('music_queue')
+      .setLabel('Queue')
+      .setEmoji('📜')
+      .setStyle(ButtonStyle.Secondary)
   );
 }
 

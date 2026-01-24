@@ -259,6 +259,35 @@ export function skip(guildId: string): { success: boolean; error?: string; nextS
 }
 
 /**
+ * Skips to the previous song
+ */
+export function previous(guildId: string): { success: boolean; error?: string; previousSong?: Song } {
+  const queue = getQueue(guildId);
+
+  if (!queue) {
+    return { success: false, error: 'No active queue found' };
+  }
+
+  // Handle loop modes
+  if (queue.loop === 'song') {
+    // Stay on current song (replay)
+    return { success: true, previousSong: queue.songs[queue.currentIndex] };
+  } else if (queue.loop === 'queue') {
+    // Move to previous song, wrap around if at start
+    queue.currentIndex = (queue.currentIndex - 1 + queue.songs.length) % queue.songs.length;
+    return { success: true, previousSong: queue.songs[queue.currentIndex] };
+  } else {
+    // Normal mode: move to previous song
+    if (queue.currentIndex <= 0) {
+      return { success: false, error: 'Already at the beginning of the queue' };
+    }
+
+    queue.currentIndex--;
+    return { success: true, previousSong: queue.songs[queue.currentIndex] };
+  }
+}
+
+/**
  * Sets loop mode
  */
 export function setLoop(guildId: string, mode: LoopMode): { success: boolean; error?: string } {

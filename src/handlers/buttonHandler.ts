@@ -1,14 +1,13 @@
 import { ButtonInteraction } from 'discord.js';
-import { getQueue, pause, resume, setLoop, setVolume } from './queueManager';
+import { getQueue, pause, resume, setLoop, setVolume, previous } from './queueManager';
 import { skip as skipSong, stop as stopPlayback } from './queueManager';
 import { shuffleQueue } from './queueManager';
 import { playSong } from './audioHandler';
 import { leaveVoiceChannel } from './voiceManager';
 import { validateMusicCommand } from '../utils/validators';
-import { createNowPlayingEmbed } from '../utils/embedBuilder';
+import { createNowPlayingEmbed, createQueueEmbed } from '../utils/embedBuilder';
 import { createNowPlayingButtons } from '../utils/buttonBuilder';
 // import { safeReply } from '../utils/errorHandler';
-import { ValidationError } from '../utils/errorHandler';
 
 /**
  * Handles button interactions
@@ -16,14 +15,19 @@ import { ValidationError } from '../utils/errorHandler';
 export async function handleButtonInteraction(interaction: ButtonInteraction): Promise<void> {
   const customId = interaction.customId;
 
-  // Defer update for immediate feedback
-  await interaction.deferUpdate();
+  // Defer update for immediate feedback (except for queue which sends a new message/ephemeral)
+  if (customId !== 'music_queue') {
+    await interaction.deferUpdate();
+  }
 
   const queue = getQueue(interaction.guildId!);
   const validation = validateMusicCommand(interaction, queue, true);
 
   if (!validation.valid) {
-    throw new ValidationError(validation.error!);
+    if (!interaction.deferred && !interaction.replied) {
+        await interaction.reply({ content: validation.error!, ephemeral: true });
+    }
+    return;
   }
 
   // Handle different button types
@@ -31,8 +35,12 @@ export async function handleButtonInteraction(interaction: ButtonInteraction): P
     await handlePlayPause(interaction, queue!);
   } else if (customId === 'music_skip') {
     await handleSkip(interaction, queue!);
+  } else if (customId === 'music_previous') {
+    await handlePrevious(interaction, queue!);
   } else if (customId === 'music_stop') {
     await handleStop(interaction, queue!);
+  } else if (customId === 'music_queue') {
+    await handleQueue(interaction, queue!);
   } else if (customId === 'music_loop') {
     await handleLoop(interaction, queue!);
   } else if (customId === 'music_shuffle') {
@@ -94,6 +102,46 @@ async function handleSkip(interaction: ButtonInteraction, queue: any): Promise<v
       components: buttons,
     });
   }
+}
+
+/**
+ * Handles previous button
+ */
+async function handlePrevious(interaction: ButtonInteraction, queue: any): Promise<void> {
+  const previousResult = previous(interaction.guildId!);
+
+  if (!previousResult.success) {
+     // If we can't go back, just show a warning (ephemeral if we hadn't deferred, but we deferred update)
+     // Since we deferred update on the message component, we can't send ephemeral easily without followUp
+     await interaction.followUp({
+         content: previousResult.error || 'Cannot go back further',
+         ephemeral: true
+     });
+     return;
+  }
+
+  // Play the previous song
+  await playSong(interaction.guildId!);
+
+  const embed = createNowPlayingEmbed(previousResult.previousSong!, queue);
+  const buttons = createNowPlayingButtons(!queue.playing, queue.loop);
+
+  await interaction.editReply({
+    embeds: [embed],
+    components: buttons,
+  });
+}
+
+/**
+ * Handles queue button
+ */
+async function handleQueue(interaction: ButtonInteraction, queue: any): Promise<void> {
+    // Show queue as ephemeral message
+    const embed = createQueueEmbed(queue, 1);
+    await interaction.reply({
+        embeds: [embed],
+        ephemeral: true
+    });
 }
 
 /**

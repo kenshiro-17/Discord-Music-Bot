@@ -111,6 +111,8 @@ export interface BotConfig {
   inactivityTimeout: number;
   /** Maximum file size in MB */
   maxFileSize: number;
+  /** YouTube Cookies for Auth */
+  youtubeCookies: string;
 }
 
 /**

@@ -120,6 +120,17 @@ async function start(): Promise<void> {
     logger.info('Starting TC Discord Music Bot');
     logger.info('Configuration', getConfigSummary());
 
+    // Initialize play-dl with cookies if provided
+    if (config.youtubeCookies) {
+      try {
+        const play = require('play-dl');
+        await play.setToken({ youtube: { cookie: config.youtubeCookies } });
+        logger.info('YouTube cookies loaded successfully');
+      } catch (error) {
+        logger.warn('Failed to load YouTube cookies', { error: (error as Error).message });
+      }
+    }
+
     // Create health check server
     createHealthCheckServer();
 

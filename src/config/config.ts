@@ -1,4 +1,5 @@
-import dotenv from 'dotenv';
+// I will update types/index.ts in the next step.
+
 import { BotConfig } from '../types';
 
 // Load environment variables
@@ -42,6 +43,7 @@ export const config: BotConfig = {
   maxQueueSize: parseInt(process.env.MAX_QUEUE_SIZE || '100', 10),
   inactivityTimeout: parseInt(process.env.INACTIVITY_TIMEOUT || '300', 10),
   maxFileSize: parseInt(process.env.MAX_FILE_SIZE || '25', 10),
+  youtubeCookies: process.env.YOUTUBE_COOKIES || '',
 };
 
 

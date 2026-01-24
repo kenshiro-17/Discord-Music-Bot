@@ -158,7 +158,11 @@ export async function getYouTubePlaylist(url: string, user: User): Promise<Song[
     // Fallback: If playlist fails but has a video ID, return that single video
     if (url.includes('v=')) {
       try {
-        const video = await getYouTubeInfo(url);
+        // Strip playlist parameters to ensure it's treated as a single video
+        const videoUrl = url.split('&')[0];
+        logger.info('Attempting fallback with cleaned URL', { videoUrl });
+
+        const video = await getYouTubeInfo(videoUrl);
         if (video) {
           return [video];
         }

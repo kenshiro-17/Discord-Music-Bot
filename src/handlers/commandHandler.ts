@@ -21,7 +21,7 @@ export async function loadCommands(client: Client & ExtendedClient): Promise<voi
 
     const commandFiles = fs
       .readdirSync(folderPath)
-      .filter((file) => file.endsWith('.ts') || file.endsWith('.js'));
+      .filter((file) => (file.endsWith('.ts') || file.endsWith('.js')) && !file.endsWith('.d.ts'));
 
     for (const file of commandFiles) {
       const filePath = path.join(folderPath, file);
@@ -60,7 +60,7 @@ export async function deployCommands(guildId?: string): Promise<void> {
 
     const commandFiles = fs
       .readdirSync(folderPath)
-      .filter((file) => file.endsWith('.ts') || file.endsWith('.js'));
+      .filter((file) => (file.endsWith('.ts') || file.endsWith('.js')) && !file.endsWith('.d.ts'));
 
     for (const file of commandFiles) {
       const filePath = path.join(folderPath, file);

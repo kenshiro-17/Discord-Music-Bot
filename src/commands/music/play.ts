@@ -189,7 +189,7 @@ export default {
 
     // Start playback if first song
     if (isFirstSong) {
-      await playSong(interaction.guildId!);
+      await playSong(voiceChannel.guild.id);
 
       const embed = createNowPlayingEmbed(song, queue);
       const buttons = createNowPlayingButtons(false, queue.loop);

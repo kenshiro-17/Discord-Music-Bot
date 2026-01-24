@@ -42,7 +42,7 @@ export default {
     }
     
     // Add playback controls
-    components.push(createNowPlayingButtons(!queue!.playing, queue!.loop));
+    components.push(...createNowPlayingButtons(!queue!.playing, queue!.loop));
 
     await interaction.reply({
       embeds: [embed],

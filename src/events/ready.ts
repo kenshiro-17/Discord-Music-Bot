@@ -22,6 +22,16 @@ export default {
       status: 'online',
     });
 
+    // Update bot name if needed
+    if (client.user && client.user.username !== 'Thankan Chettan') {
+      try {
+        await client.user.setUsername('Thankan Chettan');
+        logger.info('Updated bot username to: Thankan Chettan');
+      } catch (error) {
+        logger.warn('Failed to update bot username (rate limit or restriction)', { error: (error as Error).message });
+      }
+    }
+
     // Initialize services
     await initializePlayDl();
 

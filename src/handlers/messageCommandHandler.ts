@@ -61,4 +61,3 @@ export async function handleMessagePlay(message: Message, query: string): Promis
         await message.reply(styleResponse('Failed to play track. Please try again.', 'error'));
     }
 }
-```

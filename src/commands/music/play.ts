@@ -174,10 +174,7 @@ export default {
         embeds: [embed],
         components: buttons,
       });
-    } else {
-      const embed = createSongAddedEmbed(song, addResult.position!);
 
-    } else {
       const embed = createSongAddedEmbed(song, addResult.position!);
 
       await interaction.editReply({
@@ -191,5 +188,5 @@ export default {
       song: song.title,
       source: song.source,
     });
-},
+  },
 };

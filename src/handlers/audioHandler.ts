@@ -107,7 +107,10 @@ async function createAudioResourceFromSong(song: Song, volume: number, seekTime:
     const args = [
       '-o', '-',
       '-q',
-      // Let yt-dlp auto-select the best available format
+      // Use format that works with cookies - prefer audio, fallback to extracting audio from video
+      '-f', 'ba/b',  // ba = best audio, b = best (ffmpeg will extract audio)
+      '-x',  // Extract audio
+      '--audio-format', 'opus',  // Convert to opus for Discord
       '--no-playlist',
       '--no-warnings',
       '--buffer-size', '16K',

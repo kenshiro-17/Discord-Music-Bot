@@ -157,11 +157,21 @@ async function createAudioResourceFromSong(song: Song, volume: number, seekTime:
     // Verify URL validity first
     if (!song.url) throw new Error('No URL provided for song');
 
+    // Extract video ID for consistent URL format
+    const videoId = extractVideoId(song.url);
+    const cleanUrl = videoId ? `https://www.youtube.com/watch?v=${videoId}` : song.url;
+
     // Try play-dl first (most reliable)
     try {
-      logger.debug('Trying play-dl for streaming', { url: song.url, seekTime });
+      logger.debug('Trying play-dl for streaming', { url: cleanUrl, seekTime });
       
-      const stream = await play.stream(song.url, {
+      // Validate the URL first
+      const validated = play.yt_validate(cleanUrl);
+      if (validated !== 'video') {
+        throw new Error(`Invalid video URL: ${validated}`);
+      }
+
+      const stream = await play.stream(cleanUrl, {
         seek: seekTime,
       });
 
@@ -182,12 +192,11 @@ async function createAudioResourceFromSong(song: Song, volume: number, seekTime:
     } catch (playDlError) {
       logger.warn('play-dl failed, trying Invidious fallback', { 
         error: (playDlError as Error).message,
-        url: song.url 
+        url: cleanUrl 
       });
     }
 
     // Fallback to Invidious API
-    const videoId = extractVideoId(song.url);
     if (!videoId) {
       throw new Error('Could not extract video ID from URL');
     }

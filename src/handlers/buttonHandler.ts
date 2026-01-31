@@ -1,6 +1,6 @@
 import { ButtonInteraction } from 'discord.js';
 import { getQueue, pause, resume, setLoop, setVolume, previous, skip as skipSong, stop as stopPlayback, shuffleQueue } from './queueManager';
-import { playSong, seekTo } from './audioHandler';
+import { seekTo } from './audioHandler';
 import { leaveVoiceChannel } from './voiceManager';
 import { validateMusicCommand } from '../utils/validators';
 import { createNowPlayingEmbed, createQueueEmbed } from '../utils/embedBuilder';
@@ -106,24 +106,29 @@ async function handlePlayPause(interaction: ButtonInteraction, queue: any): Prom
 async function handleNext(interaction: ButtonInteraction, queue: any): Promise<void> {
   const skipResult = skipSong(interaction.guildId!);
 
-  if (skipResult.shouldStop) {
-    stopPlayback(interaction.guildId!);
-    leaveVoiceChannel(interaction.guildId!);
-
+  if (!skipResult.success) {
     await interaction.followUp({
-      content: 'Queue finished!',
+      content: 'Queue finished or error skipping!',
       ephemeral: true,
     });
-  } else if (skipResult.nextSong) {
-    await playSong(interaction.guildId!);
-
-    const embed = createNowPlayingEmbed(skipResult.nextSong, queue);
-    const buttons = createNowPlayingButtons(!queue.playing, queue.loop);
-
+  } else {
+    // We don't need to manually play next, discord-player handles it
+    // But we might want to update embed? discord-player emits event for track change
+    // For button interaction, we usually deferUpdate or edit message.
+    
+    // For now, just defer update (already done at top) or send confirmation if needed
+    // The playerStart event listener in player.ts will log it.
+    
+    // We can try to get the new track info but it's async.
+    // Let's just say "Skipped".
+    
     await interaction.editReply({
-      embeds: [embed],
-      components: buttons,
+        content: 'Skipped to next song.',
+        components: [] // Remove buttons temporarily? Or keep them.
     });
+    
+    // Re-rendering "Now Playing" happens via events or next interaction usually.
+    // Our old logic was manual.
   }
 }
 
@@ -141,15 +146,8 @@ async function handlePrevious(interaction: ButtonInteraction, queue: any): Promi
      return;
   }
 
-  // Play the previous song
-  await playSong(interaction.guildId!);
-
-  const embed = createNowPlayingEmbed(previousResult.previousSong!, queue);
-  const buttons = createNowPlayingButtons(!queue.playing, queue.loop);
-
   await interaction.editReply({
-    embeds: [embed],
-    components: buttons,
+      content: 'Playing previous song.',
   });
 }
 

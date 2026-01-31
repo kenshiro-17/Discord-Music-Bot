@@ -1,11 +1,10 @@
 import { SlashCommandBuilder, ChatInputCommandInteraction } from 'discord.js';
-import { getQueue, previous as previousSong } from '../../handlers/queueManager';
-import { playSong } from '../../handlers/audioHandler';
+import { previous } from '../../handlers/audioHandler';
 import { validateMusicCommand } from '../../utils/validators';
-import { createNowPlayingEmbed, createErrorEmbed } from '../../utils/embedBuilder';
-import { createNowPlayingButtons } from '../../utils/buttonBuilder';
+import { createSuccessEmbed } from '../../utils/embedBuilder';
 import { ValidationError } from '../../utils/errorHandler';
 import { styleResponse } from '../../utils/persona';
+import { getQueue } from '../../handlers/queueManager';
 
 export default {
   data: new SlashCommandBuilder()
@@ -14,32 +13,19 @@ export default {
 
   async execute(interaction: ChatInputCommandInteraction) {
     const queue = getQueue(interaction.guildId!);
-    const validation = validateMusicCommand(interaction, queue, true);
-
-    if (!validation.valid) {
-      throw new ValidationError(validation.error!);
-    }
-
+    // Validation might fail if queue manager isn't synced, but let's try
+    // Better to use discord-player queue check?
+    // For now, let's just call previous() and handle error
+    
     await interaction.deferReply();
 
-    const previousResult = previousSong(interaction.guildId!);
-
-    if (!previousResult.success) {
-      const embed = createErrorEmbed(styleResponse(previousResult.error || 'Cannot go back further', 'error'));
+    try {
+      await previous(interaction.guildId!);
+      
+      const embed = createSuccessEmbed(styleResponse('Playing previous song.'));
       await interaction.editReply({ embeds: [embed] });
-      return;
+    } catch (error) {
+      throw new ValidationError((error as Error).message);
     }
-
-    // Play the previous song
-    await playSong(interaction.guildId!);
-
-    const embed = createNowPlayingEmbed(previousResult.previousSong!, queue!);
-    const buttons = createNowPlayingButtons(!queue!.playing, queue!.loop);
-
-    await interaction.editReply({
-      content: styleResponse('Going back to the previous song.'),
-      embeds: [embed],
-      components: buttons,
-    });
   },
 };

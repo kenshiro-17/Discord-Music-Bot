@@ -93,3 +93,29 @@ export function skip(guildId: string): void {
     logger.info('Skipped song', { guildId });
   }
 }
+
+/**
+ * Jumps to a specific track in the queue
+ */
+export function jumpTo(guildId: string, index: number): void {
+  const player = getPlayer();
+  const queue = player?.nodes.get(guildId);
+  if (queue) {
+    queue.node.jump(index);
+    logger.info('Jumped to song', { guildId, index });
+  }
+}
+
+/**
+ * Plays previous song
+ */
+export async function previous(guildId: string): Promise<void> {
+  const player = getPlayer();
+  const queue = player?.nodes.get(guildId);
+  if (queue && queue.history.previousTrack) {
+    await queue.history.back();
+    logger.info('Playing previous song', { guildId });
+  } else {
+    throw new Error('No previous song available');
+  }
+}

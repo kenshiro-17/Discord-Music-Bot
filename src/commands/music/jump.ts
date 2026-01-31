@@ -1,10 +1,8 @@
 import { SlashCommandBuilder, ChatInputCommandInteraction } from 'discord.js';
-import { getQueue, jumpToSong } from '../../handlers/queueManager';
-import { playSong } from '../../handlers/audioHandler';
-import { validateMusicCommand, validateSongPosition } from '../../utils/validators';
-import { createNowPlayingEmbed } from '../../utils/embedBuilder';
-import { createNowPlayingButtons } from '../../utils/buttonBuilder';
+import { jumpTo } from '../../handlers/audioHandler';
+import { createSuccessEmbed } from '../../utils/embedBuilder';
 import { ValidationError } from '../../utils/errorHandler';
+import { styleResponse } from '../../utils/persona';
 
 export default {
   data: new SlashCommandBuilder()
@@ -19,38 +17,17 @@ export default {
     ),
 
   async execute(interaction: ChatInputCommandInteraction) {
-    const queue = getQueue(interaction.guildId!);
-    const validation = validateMusicCommand(interaction, queue, true);
-
-    if (!validation.valid) {
-      throw new ValidationError(validation.error!);
-    }
-
     const position = interaction.options.getInteger('position', true);
-
-    // Validate position
-    const positionCheck = validateSongPosition(position, queue!.songs.length);
-    if (!positionCheck.valid) {
-      throw new ValidationError(positionCheck.error!);
-    }
-
     await interaction.deferReply();
 
-    const index = position - 1;
-    const result = jumpToSong(interaction.guildId!, index);
-
-    if (!result.success) {
-      throw new ValidationError(result.error!);
+    try {
+      // discord-player uses 0-based index
+      jumpTo(interaction.guildId!, position - 1);
+      
+      const embed = createSuccessEmbed(styleResponse(`Jumped to song at position ${position}.`));
+      await interaction.editReply({ embeds: [embed] });
+    } catch (error) {
+      throw new ValidationError((error as Error).message);
     }
-
-    await playSong(interaction.guildId!);
-
-    const embed = createNowPlayingEmbed(result.song!, queue!);
-    const buttons = createNowPlayingButtons(!queue!.playing, queue!.loop);
-
-    await interaction.editReply({
-      embeds: [embed],
-      components: buttons,
-    });
   },
 };

@@ -1,13 +1,11 @@
 import { StringSelectMenuInteraction } from 'discord.js';
-import { ExtendedClient, Song } from '../types';
-import { getQueue, createQueue, addSong } from './queueManager';
-import { joinVoiceChannelHandler } from './voiceManager';
+import { ExtendedClient } from '../types';
 import { playSong } from './audioHandler';
-import { createSongAddedEmbed, createNowPlayingEmbed } from '../utils/embedBuilder';
-import { createNowPlayingButtons } from '../utils/buttonBuilder';
+import { createSuccessEmbed } from '../utils/embedBuilder';
 import { getUserVoiceChannel } from '../utils/validators';
 import { ValidationError } from '../utils/errorHandler';
 import { logger } from '../utils/logger';
+import { styleResponse } from '../utils/persona';
 
 /**
  * Handles select menu interactions
@@ -44,67 +42,35 @@ export async function handleSelectMenuInteraction(
   }
 
   // Get user's voice channel
-  const voiceChannel = getUserVoiceChannel(interaction);
+  const cachedChannel = getUserVoiceChannel(interaction);
 
-  if (!voiceChannel) {
+  if (!cachedChannel) {
     throw new ValidationError('You need to be in a voice channel.');
   }
 
-  // Create song object
-  const song: Song = {
-    title: result.title,
-    url: result.url,
-    duration: result.duration,
-    thumbnail: result.thumbnail,
-    requestedBy: interaction.user,
-    source: 'youtube',
-  };
+  // Fetch fresh channel
+  const voiceChannel = await interaction.client.channels.fetch(cachedChannel.id) as any;
 
-  // Get or create queue
-  let queue = getQueue(interaction.guildId!);
-  let isFirstSong = false;
-
-  if (!queue) {
-    queue = createQueue(interaction.channel as any, voiceChannel as any);
-    isFirstSong = true;
-
-    // Join voice channel
-    const connection = await joinVoiceChannelHandler(voiceChannel as any);
-    queue.connection = connection;
+  if (!voiceChannel) {
+     throw new ValidationError('Could not fetch your voice channel');
   }
 
-  // Add song to queue
-  const addResult = addSong(interaction.guildId!, song);
+  try {
+    await playSong(interaction.guildId!, result.url, voiceChannel);
 
-  if (!addResult.success) {
-    throw new ValidationError(addResult.error!);
-  }
+    const embed = createSuccessEmbed(styleResponse(`Selected: ${result.title}`));
+    await interaction.editReply({ embeds: [embed] });
 
-  // Start playback if first song
-  if (isFirstSong) {
-    await playSong(interaction.guildId!);
+    // Clean up cache
+    client.searchCache?.delete(searchId);
 
-    const embed = createNowPlayingEmbed(song, queue);
-    const buttons = createNowPlayingButtons(false, queue.loop);
-
-    await interaction.editReply({
-      embeds: [embed],
-      components: buttons,
+    logger.info('Search result selected', {
+      guildId: interaction.guildId,
+      song: result.title,
+      userId: interaction.user.id,
     });
-  } else {
-    const embed = createSongAddedEmbed(song, addResult.position!);
-
-    await interaction.editReply({
-      embeds: [embed],
-    });
+  } catch (error) {
+    logger.error('Failed to play selected track', { error: (error as Error).message });
+    throw new ValidationError(`Failed to play track: ${(error as Error).message}`);
   }
-
-  // Clean up cache
-  client.searchCache?.delete(searchId);
-
-  logger.info('Search result selected', {
-    guildId: interaction.guildId,
-    song: song.title,
-    userId: interaction.user.id,
-  });
 }

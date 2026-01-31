@@ -60,6 +60,20 @@ class PlayDLExtractor extends BaseExtractor {
 export async function initializePlayer(client: Client): Promise<Player> {
   if (player) return player;
 
+  // Initialize play-dl with cookies if available
+  if (process.env.YOUTUBE_COOKIES) {
+      try {
+          await play.setToken({
+              youtube: {
+                  cookie: process.env.YOUTUBE_COOKIES
+              }
+          });
+          logger.info('Set play-dl YouTube cookies');
+      } catch (e) {
+          logger.warn('Failed to set play-dl cookies', { error: (e as Error).message });
+      }
+  }
+
   player = new Player(client);
 
   try {
@@ -69,20 +83,21 @@ export async function initializePlayer(client: Client): Promise<Player> {
     await player.extractors.loadMulti(DefaultExtractors);
     logger.info('Registered: DefaultExtractors');
 
-    // 2. Register SimpleYouTubeExtractor (ytdl-core) - Very reliable fallback
-    try {
-        await player.extractors.register(SimpleYouTubeExtractor, {});
-        logger.info('Registered: SimpleYouTubeExtractor');
-    } catch (e) {
-        logger.error('Failed to register SimpleYouTubeExtractor', { error: (e as Error).message });
-    }
-
-    // 3. Register Custom PlayDL Extractor (Robust fallback)
+    // 2. Register Custom PlayDL Extractor (PRIORITY Fallback)
+    // play-dl handles 403s and format extraction better than ytdl-core currently
     try {
         await player.extractors.register(PlayDLExtractor, {});
         logger.info('Registered: PlayDLExtractor');
     } catch (e) {
         logger.error('Failed to register PlayDLExtractor', { error: (e as Error).message });
+    }
+
+    // 3. Register SimpleYouTubeExtractor (ytdl-core) - Secondary Fallback
+    try {
+        await player.extractors.register(SimpleYouTubeExtractor, {});
+        logger.info('Registered: SimpleYouTubeExtractor');
+    } catch (e) {
+        logger.error('Failed to register SimpleYouTubeExtractor', { error: (e as Error).message });
     }
 
     // 4. Try to register YoutubeiExtractor (Highest Priority if it works)

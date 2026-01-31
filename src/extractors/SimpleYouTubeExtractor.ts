@@ -50,7 +50,10 @@ export default class SimpleYouTubeExtractor extends BaseExtractor {
         try {
             logger.debug(`SimpleYouTubeExtractor handling: ${query}`);
             
-            const options: any = {};
+            const options: any = {
+                // Use mobile clients which are less restricted
+                playerClients: ['ANDROID', 'IOS', 'WEB']
+            };
             if (ytdlAgent) options.agent = ytdlAgent;
 
             const info = await ytdl.getInfo(query, options);

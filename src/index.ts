@@ -153,6 +153,10 @@ async function start(): Promise<void> {
     const { initializePlayer } = await import('./services/player');
     await initializePlayer(client);
 
+    // Initialize PoToken service
+    const { startPoTokenService } = await import('./services/potoken');
+    startPoTokenService();
+
     // Client error logging
     client.on('error', (error) => logError(error, { context: 'Discord Client Error' }));
     client.on('warn', (message) => logger.warn('Discord Client Warning', { message }));

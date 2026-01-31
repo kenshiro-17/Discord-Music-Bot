@@ -1,6 +1,7 @@
 import { BaseExtractor, Track } from 'discord-player';
 import ytdl from '@distube/ytdl-core';
 import { logger } from '../utils/logger';
+import { getPoToken } from '../services/potoken';
 
 // Cookie parser helper
 function parseCookies(cookieString: string): any[] {
@@ -56,6 +57,14 @@ export default class SimpleYouTubeExtractor extends BaseExtractor {
             };
             if (ytdlAgent) options.agent = ytdlAgent;
 
+            // Add PoToken
+            const { poToken, visitorData } = getPoToken();
+            if (poToken) {
+                options.poToken = poToken;
+                options.visitorData = visitorData;
+                logger.debug('Using PoToken for info fetch');
+            }
+
             const info = await ytdl.getInfo(query, options);
             
             const track = new Track(this.context.player, {
@@ -93,6 +102,13 @@ export default class SimpleYouTubeExtractor extends BaseExtractor {
         };
         
         if (ytdlAgent) options.agent = ytdlAgent;
+
+        // Add PoToken
+        const { poToken, visitorData } = getPoToken();
+        if (poToken) {
+            options.poToken = poToken;
+            options.visitorData = visitorData;
+        }
 
         return ytdl(info.url, options);
     }

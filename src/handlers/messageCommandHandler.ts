@@ -19,6 +19,9 @@ export async function handleMessagePlay(message: Message, query: string): Promis
         isChatInputCommand: () => true,
         deferred: false,
         replied: false,
+        id: message.id, // Use message ID as interaction ID
+        guildId: message.guildId, // Use guild ID
+        channel: message.channel, // Use channel
         guild: message.guild,
         member: message.member,
         user: message.author,

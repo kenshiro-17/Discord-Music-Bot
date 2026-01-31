@@ -1,5 +1,6 @@
 import { SlashCommandBuilder, ChatInputCommandInteraction } from 'discord.js';
-import { getQueue, stop } from '../../handlers/queueManager';
+import { getQueue } from '../../handlers/queueManager';
+import { stopPlayback } from '../../handlers/audioHandler';
 import { leaveVoiceChannel } from '../../handlers/voiceManager';
 import { validateMusicCommand } from '../../utils/validators';
 import { createSuccessEmbed } from '../../utils/embedBuilder';
@@ -19,8 +20,8 @@ export default {
       throw new ValidationError(validation.error!);
     }
 
-    stop(interaction.guildId!);
-    leaveVoiceChannel(interaction.guildId!);
+    await stopPlayback(interaction.guildId!);
+    await leaveVoiceChannel(interaction.guildId!);
 
     const embed = createSuccessEmbed(styleResponse('Stopped playback and left the voice channel.'));
     await interaction.reply({ embeds: [embed] });

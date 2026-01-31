@@ -1,5 +1,6 @@
 import { SlashCommandBuilder, ChatInputCommandInteraction } from 'discord.js';
-import { getQueue, setVolume } from '../../handlers/queueManager';
+import { getQueue } from '../../handlers/queueManager';
+import { updateVolume } from '../../handlers/audioHandler';
 import { validateMusicCommand } from '../../utils/validators';
 import { createSuccessEmbed } from '../../utils/embedBuilder';
 import { ValidationError } from '../../utils/errorHandler';
@@ -26,11 +27,7 @@ export default {
     }
 
     const volume = interaction.options.getInteger('level', true);
-    const result = setVolume(interaction.guildId!, volume);
-
-    if (!result.success) {
-      throw new ValidationError(result.error!);
-    }
+    updateVolume(interaction.guildId!, volume);
 
     const embed = createSuccessEmbed(
       `Volume set to ${volume}%\n\nNote: Volume changes will apply fully to the next song.`

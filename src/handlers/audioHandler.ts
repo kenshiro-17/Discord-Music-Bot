@@ -1,64 +1,75 @@
 import {
-  createAudioPlayer,
-  createAudioResource,
   AudioPlayer,
   AudioPlayerStatus,
-  AudioResource,
-  StreamType,
 } from '@discordjs/voice';
 import { Song } from '../types';
 import { logger, logError } from '../utils/logger';
-import { PlaybackError } from '../utils/errorHandler';
 import { getQueue, skip, stop as stopQueue } from './queueManager';
 import { startInactivityTimer } from './voiceManager';
 import { createNowPlayingEmbed } from '../utils/embedBuilder';
 import { createNowPlayingButtons } from '../utils/buttonBuilder';
-import { Innertube } from 'youtubei.js';
+import { getPlayer, searchTracks } from '../services/lavalink';
+import { Player } from 'shoukaku';
 
-// YouTube.js client instance - lazy loaded
-let innertube: Innertube | null = null;
-let innertubeInitializing = false;
-
-/**
- * Get or initialize the YouTube.js client
- */
-async function getInnertube(): Promise<Innertube> {
-  if (innertube) return innertube;
-  
-  if (innertubeInitializing) {
-    // Wait for initialization to complete
-    while (innertubeInitializing && !innertube) {
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-    if (innertube) return innertube;
-  }
-  
-  innertubeInitializing = true;
-  try {
-    logger.info('Initializing YouTube.js client...');
-    // Use default WEB client - more stable for basic info
-    innertube = await Innertube.create({
-      generate_session_locally: true,
-    });
-    logger.info('YouTube.js client initialized successfully');
-    return innertube;
-  } catch (error) {
-    innertubeInitializing = false;
-    logger.error('Failed to initialize YouTube.js client', { error: (error as Error).message });
-    throw error;
-  }
-}
+// Map to store guild players
+const guildPlayers: Map<string, Player> = new Map();
 
 /**
- * Creates and configures an audio player
+ * Creates and configures an audio player (legacy - kept for compatibility)
  */
 export function createAudioPlayerHandler(): AudioPlayer {
-  const audioPlayer = createAudioPlayer();
-  return audioPlayer;
+  // This is now a stub - Lavalink handles audio playing
+  const { createAudioPlayer } = require('@discordjs/voice');
+  return createAudioPlayer();
 }
 
 /**
- * Sets up audio player event handlers
+ * Sets up audio player event handlers for Lavalink player
+ */
+export function setupLavalinkPlayerHandlers(player: Player, guildId: string): void {
+  player.on('start', () => {
+    const queue = getQueue(guildId);
+    if (queue) {
+      queue.playing = true;
+      logger.info('Started playing song', {
+        guildId,
+        song: queue.songs[queue.currentIndex]?.title,
+      });
+    }
+  });
+
+  player.on('end', () => {
+    handleSongEnd(guildId);
+  });
+
+  player.on('closed', () => {
+    logger.info('Lavalink player closed', { guildId });
+  });
+
+  player.on('exception', (error) => {
+    logError(new Error(String(error.exception?.message || 'Unknown error')), {
+      context: 'Lavalink player exception',
+      guildId,
+    });
+    handleSongEnd(guildId);
+  });
+
+  player.on('stuck', () => {
+    logger.warn('Track got stuck', { guildId });
+    handleSongEnd(guildId);
+  });
+
+  player.on('update', (data) => {
+    const queue = getQueue(guildId);
+    if (queue && data.state.position) {
+      // Update position tracking
+      queue.startTime = Date.now() - data.state.position;
+    }
+  });
+}
+
+/**
+ * Sets up audio player event handlers (legacy - kept for compatibility)
  */
 export function setupAudioPlayerHandlers(audioPlayer: AudioPlayer, guildId: string): void {
   audioPlayer.on(AudioPlayerStatus.Idle, () => {
@@ -121,134 +132,7 @@ async function handleSongEnd(guildId: string): Promise<void> {
 }
 
 /**
- * Extracts video ID from YouTube URL
- */
-function extractVideoId(url: string): string | null {
-  const patterns = [
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
-    /^([a-zA-Z0-9_-]{11})$/,
-  ];
-  
-  for (const pattern of patterns) {
-    const match = url.match(pattern);
-    if (match) return match[1];
-  }
-  return null;
-}
-
-/**
- * Creates audio resource from song using YouTube.js built-in download
- */
-async function createAudioResourceFromSong(song: Song, volume: number, seekTime: number = 0): Promise<AudioResource> {
-  try {
-    if (!song.url) throw new Error('No URL provided for song');
-
-    const videoId = extractVideoId(song.url);
-    if (!videoId) {
-      throw new Error('Could not extract video ID from URL');
-    }
-
-    logger.debug('Creating stream with YouTube.js', { videoId, seekTime });
-
-    // Get YouTube.js client
-    const yt = await getInnertube();
-    
-    // Use getBasicInfo which is more stable and doesn't trigger the watch page parser
-    const info = await yt.getBasicInfo(videoId);
-    
-    logger.debug('Got video info', { 
-      videoId, 
-      title: info.basic_info.title,
-      duration: info.basic_info.duration,
-    });
-
-    // Get the best audio format
-    const format = info.chooseFormat({
-      type: 'audio',
-      quality: 'best',
-    });
-
-    if (!format) {
-      throw new Error('No audio format available');
-    }
-
-    logger.debug('Chosen format', {
-      videoId,
-      itag: format.itag,
-      mimeType: format.mime_type,
-      bitrate: format.bitrate,
-    });
-
-    // Decipher the stream URL
-    const streamUrl = await format.decipher(yt.session.player);
-    
-    if (!streamUrl) {
-      throw new Error('Failed to decipher stream URL');
-    }
-
-    logger.debug('Got deciphered URL', { videoId });
-
-    // Use YouTube.js built-in download with TV_EMBEDDED client
-    // This client is more permissive and works better from data centers
-    const stream = await yt.download(videoId, {
-      type: 'audio',
-      quality: 'best',
-      client: 'TV_EMBEDDED',
-    });
-
-    logger.debug('Got download stream', { videoId });
-
-    // Convert web ReadableStream to Node.js Readable
-    const { Readable } = await import('stream');
-    const nodeStream = Readable.fromWeb(stream as import('stream/web').ReadableStream);
-
-    const resource = createAudioResource(nodeStream, {
-      inputType: StreamType.Arbitrary,
-      inlineVolume: true,
-      metadata: {
-        title: song.title,
-      },
-    });
-
-    if (resource.volume) {
-      resource.volume.setVolume(volume / 100);
-    }
-
-    logger.debug('Audio resource created successfully', { videoId });
-    return resource;
-  } catch (error) {
-    logError(error as Error, {
-      context: 'Failed to create audio resource',
-      song: song.title,
-    });
-    throw new PlaybackError('Failed to create audio stream for playback');
-  }
-}
-
-/**
- * Seeks to a specific time in the song
- */
-export async function seekTo(guildId: string, timestamp: number): Promise<void> {
-  const queue = getQueue(guildId);
-  if (!queue || !queue.playing || !queue.audioPlayer) return;
-
-  const song = queue.songs[queue.currentIndex];
-  if (!song) return;
-
-  try {
-    const resource = await createAudioResourceFromSong(song, queue.volume, timestamp);
-    queue.audioPlayer.play(resource);
-    queue.startTime = Date.now() - (timestamp * 1000);
-    queue.pausedTime = 0;
-    logger.info('Seeked to position', { guildId, timestamp });
-  } catch (error) {
-    logError(error as Error, { context: 'Failed to seek' });
-    throw error;
-  }
-}
-
-/**
- * Plays a song from the queue
+ * Plays a song from the queue using Lavalink
  */
 export async function playSong(guildId: string): Promise<void> {
   const queue = getQueue(guildId);
@@ -261,9 +145,20 @@ export async function playSong(guildId: string): Promise<void> {
   const song = queue.songs[queue.currentIndex];
 
   try {
-    if (!queue.audioPlayer) {
-      queue.audioPlayer = createAudioPlayerHandler();
-      setupAudioPlayerHandlers(queue.audioPlayer, guildId);
+    // Get or create Lavalink player
+    let player = guildPlayers.get(guildId);
+    
+    if (!player && queue.voiceChannel?.id) {
+      const newPlayer = await getPlayer(guildId, queue.voiceChannel.id);
+      if (newPlayer) {
+        player = newPlayer;
+        guildPlayers.set(guildId, player);
+        setupLavalinkPlayerHandlers(player, guildId);
+      }
+    }
+
+    if (!player) {
+      throw new Error('Failed to get Lavalink player');
     }
 
     if (queue.progressInterval) {
@@ -271,17 +166,26 @@ export async function playSong(guildId: string): Promise<void> {
       queue.progressInterval = undefined;
     }
 
-    const resource = await createAudioResourceFromSong(song, queue.volume);
-
-    if (queue.connection) {
-      queue.connection.subscribe(queue.audioPlayer);
+    // Get encoded track from song or search for it
+    let encodedTrack = (song as Song & { encodedTrack?: string }).encodedTrack;
+    
+    if (!encodedTrack) {
+      // Need to search for the track
+      const tracks = await searchTracks(song.url || song.title);
+      if (tracks.length === 0) {
+        throw new Error('Could not find track');
+      }
+      encodedTrack = tracks[0].encoded;
     }
 
-    queue.audioPlayer.play(resource);
+    // Play the track
+    await player.playTrack({ track: { encoded: encodedTrack } });
+    
     queue.startTime = Date.now();
     queue.pausedTime = 0;
+    queue.playing = true;
 
-    logger.info('Playing song', {
+    logger.info('Playing song via Lavalink', {
       guildId,
       song: song.title,
       source: song.source,
@@ -299,7 +203,7 @@ export async function playSong(guildId: string): Promise<void> {
         const interval = setInterval(async () => {
           const currentQueue = getQueue(guildId);
           
-          if (!currentQueue || !currentQueue.playing || !currentQueue.audioPlayer) {
+          if (!currentQueue || !currentQueue.playing) {
             clearInterval(interval);
             return;
           }
@@ -347,15 +251,107 @@ export async function playSong(guildId: string): Promise<void> {
 }
 
 /**
+ * Seeks to a specific time in the song
+ */
+export async function seekTo(guildId: string, timestamp: number): Promise<void> {
+  const queue = getQueue(guildId);
+  if (!queue || !queue.playing) return;
+
+  const player = guildPlayers.get(guildId);
+  if (!player) return;
+
+  try {
+    await player.seekTo(timestamp * 1000); // Convert to ms
+    queue.startTime = Date.now() - (timestamp * 1000);
+    queue.pausedTime = 0;
+    logger.info('Seeked to position', { guildId, timestamp });
+  } catch (error) {
+    logError(error as Error, { context: 'Failed to seek' });
+    throw error;
+  }
+}
+
+/**
+ * Pause playback
+ */
+export async function pausePlayback(guildId: string): Promise<void> {
+  const player = guildPlayers.get(guildId);
+  if (!player) return;
+
+  await player.setPaused(true);
+  
+  const queue = getQueue(guildId);
+  if (queue) {
+    queue.playing = false;
+    queue.lastPauseTime = Date.now();
+  }
+  
+  logger.info('Playback paused', { guildId });
+}
+
+/**
+ * Resume playback
+ */
+export async function resumePlayback(guildId: string): Promise<void> {
+  const player = guildPlayers.get(guildId);
+  if (!player) return;
+
+  await player.setPaused(false);
+  
+  const queue = getQueue(guildId);
+  if (queue) {
+    queue.playing = true;
+    if (queue.lastPauseTime) {
+      queue.pausedTime = (queue.pausedTime || 0) + (Date.now() - queue.lastPauseTime);
+      queue.lastPauseTime = undefined;
+    }
+  }
+  
+  logger.info('Playback resumed', { guildId });
+}
+
+/**
+ * Stop playback and clean up
+ */
+export async function stopPlayback(guildId: string): Promise<void> {
+  const player = guildPlayers.get(guildId);
+  if (player) {
+    await player.stopTrack();
+    guildPlayers.delete(guildId);
+  }
+  
+  logger.info('Playback stopped', { guildId });
+}
+
+/**
  * Updates volume for currently playing song
  */
 export function updateVolume(guildId: string, volume: number): void {
   const queue = getQueue(guildId);
+  const player = guildPlayers.get(guildId);
 
-  if (!queue || !queue.audioPlayer) {
-    return;
-  }
+  if (!queue) return;
 
   queue.volume = volume;
+  
+  if (player) {
+    // Lavalink volume is 0-1000 (1000 = 100%)
+    player.setGlobalVolume(volume * 10);
+  }
+  
   logger.info('Volume updated', { guildId, volume });
+}
+
+/**
+ * Get player for a guild
+ */
+export function getGuildPlayer(guildId: string): Player | undefined {
+  return guildPlayers.get(guildId);
+}
+
+/**
+ * Clean up player for a guild
+ */
+export function cleanupPlayer(guildId: string): void {
+  guildPlayers.delete(guildId);
 }

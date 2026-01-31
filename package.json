@@ -31,7 +31,6 @@
   "dependencies": {
     "@discordjs/opus": "^0.10.0",
     "@discordjs/voice": "^0.19.0",
-    "@distube/ytdl-core": "^4.16.12",
     "@noble/ciphers": "^2.1.1",
     "@sentry/node": "^7.91.0",
     "@snazzah/davey": "^0.1.9",
@@ -39,13 +38,12 @@
     "dotenv": "^16.3.1",
     "libsodium-wrappers": "^0.7.13",
     "opusscript": "^0.0.8",
-    "play-dl": "^1.9.7",
+    "shoukaku": "^4.2.0",
     "sodium-native": "^5.0.10",
     "tweetnacl": "^1.0.3",
     "typescript": "^5.3.3",
     "winston": "^3.11.0",
-    "winston-daily-rotate-file": "^4.7.1",
-    "youtubei.js": "^16.0.1"
+    "winston-daily-rotate-file": "^4.7.1"
   },
   "devDependencies": {
     "@types/jest": "^29.5.11",

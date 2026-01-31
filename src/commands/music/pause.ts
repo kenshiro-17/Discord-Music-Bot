@@ -1,5 +1,6 @@
 import { SlashCommandBuilder, ChatInputCommandInteraction } from 'discord.js';
-import { getQueue, pause } from '../../handlers/queueManager';
+import { getQueue } from '../../handlers/queueManager';
+import { pausePlayback } from '../../handlers/audioHandler';
 import { validateMusicCommand } from '../../utils/validators';
 import { createSuccessEmbed } from '../../utils/embedBuilder';
 import { ValidationError } from '../../utils/errorHandler';
@@ -18,11 +19,7 @@ export default {
       throw new ValidationError(validation.error!);
     }
 
-    const result = pause(interaction.guildId!);
-
-    if (!result.success) {
-      throw new ValidationError(result.error!);
-    }
+    await pausePlayback(interaction.guildId!);
 
     const embed = createSuccessEmbed(styleResponse('Playback paused.'));
     await interaction.reply({ embeds: [embed] });

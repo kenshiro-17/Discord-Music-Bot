@@ -1,6 +1,5 @@
 import { Client, ActivityType, Events } from 'discord.js';
 import { logger } from '../utils/logger';
-import { initializePlayDl } from '../services/youtube';
 
 
 
@@ -33,7 +32,7 @@ export default {
     }
 
     // Initialize services
-    await initializePlayDl();
+    // Lavalink is initialized in index.ts now
 
 
 

@@ -9,7 +9,8 @@ import {
   StringSelectMenuInteraction,
   Message,
 } from 'discord.js';
-import { VoiceConnection, AudioPlayer } from '@discordjs/voice';
+import { AudioPlayer } from '@discordjs/voice';
+import { Player } from 'shoukaku';
 
 /**
  * Represents a song in the queue
@@ -26,8 +27,9 @@ export interface Song {
   /** User who requested the song */
   requestedBy: User;
   /** Music source type */
-  source: 'youtube';
-
+  source: 'youtube' | 'soundcloud' | 'spotify' | 'file';
+  /** Lavalink encoded track */
+  encodedTrack?: string;
 }
 
 /**
@@ -43,8 +45,8 @@ export interface ServerQueue {
   textChannel: TextChannel;
   /** Voice channel bot is connected to */
   voiceChannel: VoiceChannel;
-  /** Active voice connection */
-  connection: VoiceConnection | null;
+  /** Active voice connection (Lavalink Player) */
+  connection: Player | null;
   /** Queue of songs */
   songs: Song[];
   /** Current volume (0-200) */

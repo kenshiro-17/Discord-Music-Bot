@@ -4,13 +4,10 @@ import { getQueue, createQueue, addSong, addSongs } from '../../handlers/queueMa
 import { joinVoiceChannelHandler } from '../../handlers/voiceManager';
 import { playSong } from '../../handlers/audioHandler';
 import {
-  isYouTubeUrl,
-  isYouTubePlaylistUrl,
   getUserVoiceChannel,
   validateVoicePermissions,
-  sanitizeSearchQuery,
 } from '../../utils/validators';
-import { getYouTubeInfo, getYouTubePlaylist, searchYouTube } from '../../services/youtube';
+import { searchTracks, trackToSong } from '../../services/lavalink';
 import {
   createSongAddedEmbed,
   createNowPlayingEmbed,
@@ -20,8 +17,9 @@ import {
 import { createNowPlayingButtons } from '../../utils/buttonBuilder';
 import { createSearchResultSelectMenu } from '../../utils/selectMenuBuilder';
 import { ValidationError, PlaybackError } from '../../utils/errorHandler';
-import { logger } from '../../utils/logger';
+import { logger, logError } from '../../utils/logger';
 import { styleResponse } from '../../utils/persona';
+import { YouTubeSearchResult } from '../../types';
 
 export default {
   data: new SlashCommandBuilder()
@@ -58,12 +56,6 @@ export default {
        throw new ValidationError('Could not fetch your voice channel');
     }
 
-    logger.debug('Voice channel fetched', { 
-      id: voiceChannel.id, 
-      guild: voiceChannel.guild.id,
-      adapterCreatorAvailable: !!voiceChannel.guild.voiceAdapterCreator 
-    });
-
     // Validate permissions
     const permissionCheck = validateVoicePermissions(voiceChannel);
     if (!permissionCheck.valid) {
@@ -81,8 +73,8 @@ export default {
       // Join voice channel
       logger.info('Connecting to voice channel...', { guildId: voiceChannel.guild.id });
       try {
-        const connection = await joinVoiceChannelHandler(voiceChannel as any);
-        queue.connection = connection;
+        const player = await joinVoiceChannelHandler(voiceChannel as any);
+        queue.connection = player;
         logger.info('Connected to voice channel', { guildId: voiceChannel.guild.id });
       } catch (error) {
         logger.error('Failed to connect to voice channel', { error: (error as Error).message });
@@ -90,65 +82,52 @@ export default {
       }
     }
 
-    // Process input
+    // Process input using Lavalink
     let songs: Song[] = [];
+    logger.info('Processing query with Lavalink', { query });
 
-    if (query) {
-      logger.info('Processing query', { query });
-      // Handle URL or search query
-      if (isYouTubeUrl(query)) {
-        if (isYouTubePlaylistUrl(query)) {
-          logger.info('Fetching playlist info...');
-          // YouTube playlist
-          songs = await getYouTubePlaylist(query, interaction.user);
-          logger.info('Playlist info fetched', { count: songs.length });
+    try {
+      const tracks = await searchTracks(query);
 
-          if (songs.length === 0) {
-            throw new PlaybackError('Failed to load playlist or playlist is empty');
-          }
+      if (tracks.length === 0) {
+        throw new PlaybackError('No results found');
+      }
 
-          // Add all songs
-          logger.info('Adding playlist songs to queue', { guildId: voiceChannel.guild.id, count: songs.length });
-          const addResult = addSongs(voiceChannel.guild.id, songs);
+      // Convert tracks to Songs
+      songs = tracks.map(track => {
+        const songData = trackToSong(track);
+        return {
+          ...songData,
+          requestedBy: interaction.user
+        } as Song;
+      });
 
-          if (!addResult.success) {
-            throw new ValidationError(addResult.error!);
-          }
+      // If it's a playlist (more than 1 song) or direct URL, add them
+      // If it's a search result (and we have results), we might want to show selection menu
+      // But Lavalink's searchTracks implementation already handles "ytsearch:" vs direct URL
+      // If it returns multiple tracks for a non-playlist search, it usually returns the top result or list?
+      // Our searchTracks implementation returns [result.data] for TRACK load type, and tracks array for PLAYLIST.
+      // For SEARCH load type, it returns result.data (array).
+      
+      // If query was a direct URL (http/https), we take the result directly.
+      // If it was a search, we might have got multiple results.
+      
+      const isUrl = query.startsWith('http');
+      
+      if (!isUrl && songs.length > 1) {
+        // It was a search, show selection menu
+        // Need to convert songs back to YouTubeSearchResult format for the helper
+        // or just pick the first one?
+        // Let's stick to showing selection menu for searches
+        
+        const results: YouTubeSearchResult[] = songs.slice(0, 5).map(s => ({
+            title: s.title,
+            url: s.url,
+            duration: s.duration,
+            thumbnail: s.thumbnail,
+            channel: 'Unknown' // Lavalink doesn't give channel name easily in basic info
+        }));
 
-          // Start playback if first song
-          if (isFirstSong) {
-            await playSong(voiceChannel.guild.id);
-          }
-
-          const embed = createPlaylistAddedEmbed(
-            'YouTube Playlist',
-            addResult.count!,
-            'YouTube'
-          );
-
-          await interaction.editReply({ embeds: [embed] });
-          return;
-        } else {
-          // Single YouTube video
-          const song = await getYouTubeInfo(query);
-
-          if (!song) {
-            throw new PlaybackError('Failed to load video information');
-          }
-
-          song.requestedBy = interaction.user;
-          songs = [song];
-        }
-      } else {
-        // Search query
-        const sanitized = sanitizeSearchQuery(query);
-        const results = await searchYouTube(sanitized, 5);
-
-        if (results.length === 0) {
-          throw new PlaybackError('No results found for your search');
-        }
-
-        // Create select menu
         const client = interaction.client as unknown as ExtendedClient;
         const searchId = `music_search_${interaction.id}`;
 
@@ -158,7 +137,7 @@ export default {
           expiresAt: Date.now() + 60000, // 1 minute
         });
 
-        const embed = createSearchResultsEmbed(results, sanitized);
+        const embed = createSearchResultsEmbed(results, query);
         const selectMenu = createSearchResultSelectMenu(results, searchId);
 
         await interaction.editReply({
@@ -173,44 +152,74 @@ export default {
 
         return;
       }
+
+      // If we are here, we are adding songs to queue (either direct URL, playlist, or single search result)
+      if (songs.length > 1) {
+        // Playlist
+        const addResult = addSongs(voiceChannel.guild.id, songs);
+
+        if (!addResult.success) {
+          throw new ValidationError(addResult.error!);
+        }
+
+        // Start playback if first song
+        if (isFirstSong) {
+          await playSong(voiceChannel.guild.id);
+        }
+
+        const embed = createPlaylistAddedEmbed(
+          'Playlist',
+          addResult.count!,
+          'Lavalink'
+        );
+
+        await interaction.editReply({ embeds: [embed] });
+      } else {
+        // Single song
+        const song = songs[0];
+        const addResult = addSong(voiceChannel.guild.id, song);
+
+        if (!addResult.success) {
+          throw new ValidationError(addResult.error!);
+        }
+
+        // Start playback if first song
+        if (isFirstSong) {
+          await playSong(voiceChannel.guild.id);
+
+          const embed = createNowPlayingEmbed(song, queue);
+          const buttons = createNowPlayingButtons(false, queue.loop);
+
+          await interaction.editReply({
+            embeds: [embed],
+            components: buttons,
+          });
+
+          const addedEmbed = createSongAddedEmbed(song, addResult.position!);
+
+          await interaction.editReply({
+            content: styleResponse(`Added to queue: ${song.title}`),
+            embeds: [addedEmbed],
+          });
+        } else {
+            // Just added to queue
+            const addedEmbed = createSongAddedEmbed(song, addResult.position!);
+            await interaction.editReply({
+                content: styleResponse(`Added to queue: ${song.title}`),
+                embeds: [addedEmbed],
+            });
+        }
+
+        logger.info('Song added via play command', {
+          guildId: interaction.guildId,
+          song: song.title,
+          source: song.source,
+        });
+      }
+
+    } catch (error) {
+        logError(error as Error, { context: 'Lavalink search failed', query });
+        throw new PlaybackError(`Failed to load track: ${(error as Error).message}`);
     }
-
-    // Add song to queue
-    if (songs.length === 0) {
-      throw new PlaybackError('Failed to process your request');
-    }
-
-    const song = songs[0];
-    const addResult = addSong(voiceChannel.guild.id, song);
-
-    if (!addResult.success) {
-      throw new ValidationError(addResult.error!);
-    }
-
-    // Start playback if first song
-    if (isFirstSong) {
-      await playSong(voiceChannel.guild.id);
-
-      const embed = createNowPlayingEmbed(song, queue);
-      const buttons = createNowPlayingButtons(false, queue.loop);
-
-      await interaction.editReply({
-        embeds: [embed],
-        components: buttons,
-      });
-
-      const addedEmbed = createSongAddedEmbed(song, addResult.position!);
-
-      await interaction.editReply({
-        content: styleResponse(`Added to queue: ${song.title}`),
-        embeds: [addedEmbed],
-      });
-    }
-
-    logger.info('Song added via play command', {
-      guildId: interaction.guildId,
-      song: song.title,
-      source: song.source,
-    });
   },
 };

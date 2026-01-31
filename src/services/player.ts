@@ -4,6 +4,7 @@ import { logger, logError } from '../utils/logger';
 import { YoutubeiExtractor } from 'discord-player-youtubei';
 import { DefaultExtractors } from '@discord-player/extractor';
 import play from 'play-dl';
+import SimpleYouTubeExtractor from '../extractors/SimpleYouTubeExtractor';
 
 // Singleton instance
 let player: Player | null = null;
@@ -64,7 +65,27 @@ export async function initializePlayer(client: Client): Promise<Player> {
   try {
     logger.info('Registering extractors...');
 
-    // 1. Try to register YoutubeiExtractor with Android client
+    // 1. Load Default Extractors first (Standard priority)
+    await player.extractors.loadMulti(DefaultExtractors);
+    logger.info('Registered: DefaultExtractors');
+
+    // 2. Register SimpleYouTubeExtractor (ytdl-core) - Very reliable fallback
+    try {
+        await player.extractors.register(SimpleYouTubeExtractor, {});
+        logger.info('Registered: SimpleYouTubeExtractor');
+    } catch (e) {
+        logger.error('Failed to register SimpleYouTubeExtractor', { error: (e as Error).message });
+    }
+
+    // 3. Register Custom PlayDL Extractor (Robust fallback)
+    try {
+        await player.extractors.register(PlayDLExtractor, {});
+        logger.info('Registered: PlayDLExtractor');
+    } catch (e) {
+        logger.error('Failed to register PlayDLExtractor', { error: (e as Error).message });
+    }
+
+    // 4. Try to register YoutubeiExtractor (Highest Priority if it works)
     try {
         await player.extractors.register(YoutubeiExtractor, {
             authentication: process.env.YOUTUBE_COOKIES || '',
@@ -76,17 +97,6 @@ export async function initializePlayer(client: Client): Promise<Player> {
     } catch (e) {
         logger.error('Failed to register YoutubeiExtractor', { error: (e as Error).message });
     }
-
-    // 2. Register Custom PlayDL Extractor as fallback
-    try {
-        await player.extractors.register(PlayDLExtractor, {});
-        logger.info('Registered: PlayDLExtractor');
-    } catch (e) {
-        logger.error('Failed to register PlayDLExtractor', { error: (e as Error).message });
-    }
-
-    // 3. Load Default Extractors
-    await player.extractors.loadMulti(DefaultExtractors);
     
     // Debug: List all registered extractors
     const registered = player.extractors.store.keys();
@@ -107,6 +117,11 @@ export async function initializePlayer(client: Client): Promise<Player> {
 
   player.events.on('playerError', (queue: any, error: Error) => {
     logError(error, { context: 'Player Connection Error', guild: queue.guild.id });
+  });
+
+  // Debug events
+  player.events.on('debug', (_queue: any, message: string) => {
+    logger.debug('Player Debug', { message });
   });
 
   return player;

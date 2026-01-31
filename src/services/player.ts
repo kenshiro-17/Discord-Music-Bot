@@ -13,28 +13,33 @@ let player: Player | null = null;
 export async function initializePlayer(client: Client): Promise<Player> {
   if (player) return player;
 
+  // Initialize without invalid options
   player = new Player(client);
 
   try {
-    // Register defaults first (Spotify, SoundCloud, etc.)
-    // Explicitly loading DefaultExtractors
-    await player.extractors.loadMulti(DefaultExtractors);
-    
-    // Register YouTubei extractor which is more reliable for YouTube
-    // We register it manually to ensure it takes precedence or is available
-    await player.extractors.register(YoutubeiExtractor, {
-      authentication: process.env.YOUTUBE_COOKIES || '' // Optional: pass cookies string if available
-    });
+    logger.info('Registering extractors...');
 
-    logger.info('Discord Player extractors loaded');
-    logger.debug('Registered extractors', { list: player.extractors.store.keys() });
+    // 1. Register YouTubei Extractor (Priority)
+    await player.extractors.register(YoutubeiExtractor, {
+      authentication: process.env.YOUTUBE_COOKIES || '' 
+    });
+    logger.info('Registered: YoutubeiExtractor');
+
+    // 2. Load Default Extractors (Spotify, SoundCloud, etc.)
+    await player.extractors.loadMulti(DefaultExtractors);
+    logger.info('Registered: DefaultExtractors');
+
+    // Debug: List all registered extractors
+    const registered = player.extractors.store.keys();
+    logger.info(`Total Extractors: ${Array.from(registered).join(', ')}`);
+
   } catch (error) {
     logger.error('Failed to load extractors', { error: (error as Error).message });
   }
 
   // Event handling
   player.events.on('playerStart', (queue: any, track: any) => {
-    logger.info('Player started', { guild: queue.guild.id, track: track.title });
+    logger.info('Player started', { guild: queue.guild.id, track: track.title, url: track.url });
   });
 
   player.events.on('error', (queue: any, error: Error) => {

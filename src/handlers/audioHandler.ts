@@ -1,5 +1,6 @@
 import { getPlayer } from '../services/player';
 import { logger, logError } from '../utils/logger';
+import { QueryType } from 'discord-player';
 
 /**
  * Plays a song (or adds to queue) using discord-player
@@ -9,14 +10,44 @@ export async function playSong(guildId: string, query: string, channel: any): Pr
   if (!player) throw new Error('Player not initialized');
 
   try {
-    const { track } = await player.play(channel, query, {
+    // Strategy: Try standard play first
+    logger.info('Attempting to play', { query });
+    
+    // Explicitly define search engine for YouTube links to use our registered extractor
+    // const searchEngine = QueryType.AUTO; 
+
+    const result = await player.play(channel, query, {
       nodeOptions: {
         metadata: { channel: channel }
       }
     });
 
-    logger.info('Played/Added song', { guildId, track: track.title });
+    if (!result || !result.track) {
+        throw new Error('No track found');
+    }
+
+    logger.info('Played/Added song', { guildId, track: result.track.title });
   } catch (error) {
+    // Fallback: Try strict search then play
+    logger.warn('Direct play failed, trying fallback search...', { error: (error as Error).message });
+    
+    try {
+        const searchResult = await player.search(query, {
+            requestedBy: undefined,
+            searchEngine: QueryType.YOUTUBE_VIDEO
+        });
+
+        if (searchResult && searchResult.tracks.length > 0) {
+            const { track } = await player.play(channel, searchResult.tracks[0], {
+                nodeOptions: { metadata: { channel: channel } }
+            });
+            logger.info('Fallback play success', { track: track.title });
+            return;
+        }
+    } catch (fallbackError) {
+        logger.error('Fallback failed', { error: (fallbackError as Error).message });
+    }
+
     logError(error as Error, { context: 'Play Error', guildId });
     throw error;
   }

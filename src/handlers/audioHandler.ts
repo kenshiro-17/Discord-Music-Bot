@@ -107,20 +107,21 @@ async function createAudioResourceFromSong(song: Song, volume: number, seekTime:
     const args = [
       '-o', '-',
       '-q',
-      '-f', 'bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio/best[height<=480]/best',
       '--no-playlist',
       '--no-warnings',
       '--buffer-size', '16K',
       '--socket-timeout', '15',
       '--no-check-certificate',
-      // Use iOS client which often has better format availability
-      '--extractor-args', 'youtube:player_client=ios,web',
     ];
 
-    // Try with cookies first, but log if we're using them
+    // Add cookies if available
     if (fs.existsSync(COOKIES_PATH)) {
       args.push('--cookies', COOKIES_PATH);
       logger.debug('Using cookies for yt-dlp playback');
+    } else {
+      // Without cookies, use alternative client to bypass restrictions
+      args.push('--extractor-args', 'youtube:player_client=tv_embedded');
+      logger.debug('No cookies, using tv_embedded client');
     }
 
     if (seekTime > 0) {

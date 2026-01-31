@@ -14,6 +14,11 @@ import { startInactivityTimer } from './voiceManager';
 import { spawn } from 'child_process';
 import { createNowPlayingEmbed } from '../utils/embedBuilder';
 import { createNowPlayingButtons } from '../utils/buttonBuilder';
+import * as fs from 'fs';
+import * as path from 'path';
+
+// Cookie path for yt-dlp authentication
+const COOKIES_PATH = path.join(process.cwd(), 'cookies.txt');
 
 /**
  * Creates and configures an audio player
@@ -106,8 +111,18 @@ async function createAudioResourceFromSong(song: Song, volume: number, seekTime:
       '--no-playlist',
       '--no-warnings',
       '--buffer-size', '16K',
-      '--socket-timeout', '10'
+      '--socket-timeout', '10',
+      '--no-check-certificate',
+      '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      '--referer', 'https://www.youtube.com/',
+      '--extractor-args', 'youtube:player_client=android',
     ];
+
+    // Add cookies if available
+    if (fs.existsSync(COOKIES_PATH)) {
+      args.push('--cookies', COOKIES_PATH);
+      logger.debug('Using cookies for yt-dlp playback');
+    }
 
     if (seekTime > 0) {
         args.push('--download-sections', `*${seekTime}-inf`);

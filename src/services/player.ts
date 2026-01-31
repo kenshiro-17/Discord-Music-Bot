@@ -51,7 +51,7 @@ export async function initializePlayer(client: Client): Promise<Player> {
   });
 
   // Debug events
-  player.events.on('debug', (queue: any, message: string) => {
+  player.events.on('debug', (_queue: any, message: string) => {
     logger.debug('Player Debug', { message });
   });
 

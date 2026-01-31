@@ -5,10 +5,13 @@
 echo "Starting Lavalink server..."
 cd /app/lavalink
 
-# Start Lavalink in background but pipe output to stdout and file
-# We use tee to see logs in Railway console
-java -Xmx512M -jar Lavalink.jar > >(tee /app/logs/lavalink.log) 2>&1 &
+# Start Lavalink in background and pipe output to log file
+java -Xmx512M -jar Lavalink.jar > /app/logs/lavalink.log 2>&1 &
 LAVALINK_PID=$!
+
+# Tail the log file to stdout in background so we can see it in Railway logs
+tail -f /app/logs/lavalink.log &
+TAIL_PID=$!
 
 # Wait for Lavalink to be ready (check port 2333)
 echo "Waiting for Lavalink to be ready..."
@@ -23,13 +26,12 @@ done
 
 if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
     echo "ERROR: Lavalink failed to start within timeout"
-    echo "Last 50 lines of Lavalink log:"
-    tail -n 50 /app/logs/lavalink.log
     exit 1
 fi
 
 # Additional wait to ensure WebSocket is ready
-sleep 5
+echo "Port is open, waiting 10s for full initialization..."
+sleep 10
 
 echo "Lavalink is ready!"
 

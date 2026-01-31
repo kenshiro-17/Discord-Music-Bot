@@ -6,10 +6,8 @@ lavalink:
   plugins:
     # Official YouTube Plugin - required for YouTube in 2025/2026
     - dependency: "dev.lavalink.youtube:youtube-plugin:1.11.4"
-      snapshot: false
     # LavaSrc Plugin - for Spotify, Apple Music, Deezer support
     - dependency: "com.github.topi314.lavasrc:lavasrc-plugin:4.4.1"
-      snapshot: false
 
   server:
     password: "${LAVALINK_PASSWORD:youshallnotpass}"

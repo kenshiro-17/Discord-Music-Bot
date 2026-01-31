@@ -107,20 +107,17 @@ async function createAudioResourceFromSong(song: Song, volume: number, seekTime:
     const args = [
       '-o', '-',
       '-q',
-      // Use format that works with cookies - prefer audio, fallback to extracting audio from video
-      '-f', 'ba/b',  // ba = best audio, b = best (ffmpeg will extract audio)
-      '-x',  // Extract audio
-      '--audio-format', 'opus',  // Convert to opus for Discord
+      '-f', 'bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio/best[height<=480]/best',
       '--no-playlist',
       '--no-warnings',
       '--buffer-size', '16K',
       '--socket-timeout', '15',
       '--no-check-certificate',
-      '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      '--referer', 'https://www.youtube.com/',
+      // Use iOS client which often has better format availability
+      '--extractor-args', 'youtube:player_client=ios,web',
     ];
 
-    // Add cookies if available
+    // Try with cookies first, but log if we're using them
     if (fs.existsSync(COOKIES_PATH)) {
       args.push('--cookies', COOKIES_PATH);
       logger.debug('Using cookies for yt-dlp playback');

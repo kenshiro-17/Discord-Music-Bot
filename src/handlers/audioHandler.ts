@@ -107,17 +107,15 @@ async function createAudioResourceFromSong(song: Song, volume: number, seekTime:
     const args = [
       '-o', '-',
       '-q',
-      // Use flexible format selection: prefer audio-only, fallback to best available
-      '-f', 'bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio/best',
+      // Use very flexible format selection with fallbacks
+      '-f', 'bestaudio/best',
       '--no-playlist',
       '--no-warnings',
       '--buffer-size', '16K',
-      '--socket-timeout', '10',
+      '--socket-timeout', '15',
       '--no-check-certificate',
       '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       '--referer', 'https://www.youtube.com/',
-      // Try web client first (more formats), fallback handled by format selection
-      '--extractor-args', 'youtube:player_client=web',
     ];
 
     // Add cookies if available

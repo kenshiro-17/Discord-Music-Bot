@@ -11,16 +11,74 @@ import { logger, logError } from '../utils/logger';
 import { PlaybackError } from '../utils/errorHandler';
 import { getQueue, skip, stop as stopQueue } from './queueManager';
 import { startInactivityTimer } from './voiceManager';
-import { spawn } from 'child_process';
 import { createNowPlayingEmbed } from '../utils/embedBuilder';
 import { createNowPlayingButtons } from '../utils/buttonBuilder';
+import ytdl from '@distube/ytdl-core';
+import * as fs from 'fs';
+import * as path from 'path';
+
+// Cookie path
+const COOKIES_PATH = path.join(process.cwd(), 'cookies.txt');
+
+/**
+ * Parse Netscape cookie file to ytdl-core cookie format
+ */
+function parseCookiesFile(): ytdl.Cookie[] | undefined {
+  try {
+    if (!fs.existsSync(COOKIES_PATH)) {
+      logger.warn('No cookies.txt file found');
+      return undefined;
+    }
+
+    const content = fs.readFileSync(COOKIES_PATH, 'utf-8');
+    const cookies: ytdl.Cookie[] = [];
+
+    const lines = content.split('\n');
+    for (const line of lines) {
+      // Skip comments and empty lines
+      if (line.startsWith('#') || line.trim() === '') continue;
+
+      const parts = line.split('\t');
+      if (parts.length >= 7) {
+        cookies.push({
+          domain: parts[0],
+          hostOnly: parts[1] !== 'TRUE',
+          path: parts[2],
+          secure: parts[3] === 'TRUE',
+          expirationDate: parseInt(parts[4]) || undefined,
+          name: parts[5],
+          value: parts[6],
+        });
+      }
+    }
+
+    if (cookies.length > 0) {
+      logger.info('Loaded YouTube cookies', { count: cookies.length });
+      return cookies;
+    }
+  } catch (error) {
+    logger.error('Failed to parse cookies file', { error: (error as Error).message });
+  }
+  return undefined;
+}
+
+// Load cookies once at startup
+const ytdlCookies = parseCookiesFile();
+
+// Create ytdl agent with cookies
+const ytdlAgent = ytdlCookies ? ytdl.createAgent(ytdlCookies) : undefined;
+
+if (ytdlAgent) {
+  logger.info('YTDL agent created with cookies');
+} else {
+  logger.warn('YTDL agent created without cookies - may get 403 errors');
+}
 
 /**
  * Creates and configures an audio player
  */
 export function createAudioPlayerHandler(): AudioPlayer {
   const audioPlayer = createAudioPlayer();
-
   return audioPlayer;
 }
 
@@ -72,7 +130,6 @@ async function handleSongEnd(guildId: string): Promise<void> {
   const skipResult = skip(guildId);
 
   if (skipResult.shouldStop) {
-    // No more songs, stop playback
     logger.info('Queue finished', { guildId });
 
     if (queue && queue.textChannel) {
@@ -84,68 +141,8 @@ async function handleSongEnd(guildId: string): Promise<void> {
     stopQueue(guildId);
     startInactivityTimer(guildId, 300);
   } else if (skipResult.nextSong) {
-    // Play next song
     await playSong(guildId);
   }
-}
-
-/**
- * Fetches stream URL from cobalt.tools API
- */
-async function getCobaltStreamUrl(videoId: string): Promise<string | null> {
-  const cobaltInstances = [
-    'https://api.cobalt.tools',
-    'https://cobalt-api.kwiatekmiki.com', 
-    'https://cobalt.api.timelessnesses.me',
-    'https://co.wuk.sh',
-  ];
-
-  for (const apiUrl of cobaltInstances) {
-    try {
-      logger.debug('Trying Cobalt instance', { apiUrl, videoId });
-      
-      const response = await fetch(`${apiUrl}/api/json`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify({
-          url: `https://www.youtube.com/watch?v=${videoId}`,
-          isAudioOnly: true,
-          aFormat: 'opus',
-          filenamePattern: 'basic',
-        }),
-        signal: AbortSignal.timeout(15000), // 15 second timeout
-      });
-      
-      if (!response.ok) {
-        logger.debug('Cobalt response not ok', { apiUrl, status: response.status });
-        continue;
-      }
-      
-      const data = await response.json() as any;
-      
-      if (data.status === 'stream' && data.url) {
-        logger.info('Got stream URL from Cobalt', { apiUrl, videoId });
-        return data.url;
-      } else if (data.status === 'redirect' && data.url) {
-        logger.info('Got redirect URL from Cobalt', { apiUrl, videoId });
-        return data.url;
-      } else if (data.url) {
-        // Some instances just return the URL directly
-        logger.info('Got URL from Cobalt', { apiUrl, videoId });
-        return data.url;
-      } else {
-        logger.debug('Cobalt returned unexpected response', { apiUrl, status: data.status });
-      }
-    } catch (error) {
-      logger.debug('Cobalt instance failed', { apiUrl, error: (error as Error).message });
-      continue;
-    }
-  }
-  
-  return null;
 }
 
 /**
@@ -165,63 +162,43 @@ function extractVideoId(url: string): string | null {
 }
 
 /**
- * Creates audio resource from song using Cobalt API only
+ * Creates audio resource from song using @distube/ytdl-core
  */
 async function createAudioResourceFromSong(song: Song, volume: number, seekTime: number = 0): Promise<AudioResource> {
   try {
-    // Verify URL validity first
     if (!song.url) throw new Error('No URL provided for song');
 
-    // Extract video ID
     const videoId = extractVideoId(song.url);
     if (!videoId) {
       throw new Error('Could not extract video ID from URL');
     }
 
-    logger.debug('Getting stream URL from Cobalt', { videoId });
-    const streamUrl = await getCobaltStreamUrl(videoId);
-    
-    if (!streamUrl) {
-      throw new Error('Failed to get stream URL from Cobalt');
+    const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+    logger.debug('Creating stream with ytdl-core', { videoId, seekTime });
+
+    // ytdl options
+    const ytdlOptions: ytdl.downloadOptions = {
+      filter: 'audioonly',
+      quality: 'highestaudio',
+      highWaterMark: 1 << 25, // 32MB buffer
+      dlChunkSize: 0, // Disable chunking for better streaming
+    };
+
+    // Add agent with cookies if available
+    if (ytdlAgent) {
+      ytdlOptions.agent = ytdlAgent;
     }
 
-    logger.debug('Streaming with ffmpeg', { videoId, seekTime });
+    // Create the stream
+    const stream = ytdl(videoUrl, ytdlOptions);
 
-    // Use ffmpeg to stream from the URL
-    const ffmpeg = spawn('ffmpeg', [
-      '-reconnect', '1',
-      '-reconnect_streamed', '1',
-      '-reconnect_delay_max', '5',
-      '-i', streamUrl,
-      '-ss', seekTime.toString(),
-      '-vn',
-      '-acodec', 'libopus',
-      '-f', 'opus',
-      '-ar', '48000',
-      '-ac', '2',
-      'pipe:1',
-    ], { stdio: ['ignore', 'pipe', 'pipe'] });
-
-    ffmpeg.on('error', (error) => {
-      logger.error('ffmpeg process error', { error: error.message });
+    // Handle stream errors
+    stream.on('error', (error) => {
+      logger.error('ytdl stream error', { error: error.message, videoId });
     });
 
-    ffmpeg.stderr.on('data', (data) => {
-      // FFmpeg outputs info to stderr, only log actual errors
-      const msg = data.toString();
-      if (msg.includes('Error') || msg.includes('error')) {
-        logger.warn(`ffmpeg stderr: ${msg}`);
-      }
-    });
-
-    ffmpeg.on('close', (code) => {
-      if (code !== 0 && code !== null) {
-        logger.debug('ffmpeg process closed', { code });
-      }
-    });
-
-    const resource = createAudioResource(ffmpeg.stdout, {
-      inputType: StreamType.OggOpus,
+    const resource = createAudioResource(stream, {
+      inputType: StreamType.Arbitrary,
       inlineVolume: true,
       metadata: {
         title: song.title,
@@ -254,16 +231,10 @@ export async function seekTo(guildId: string, timestamp: number): Promise<void> 
   if (!song) return;
 
   try {
-    // Create new resource starting at timestamp
     const resource = await createAudioResourceFromSong(song, queue.volume, timestamp);
-    
-    // Play new resource
     queue.audioPlayer.play(resource);
-    
-    // Update manual timer
     queue.startTime = Date.now() - (timestamp * 1000);
     queue.pausedTime = 0;
-    
     logger.info('Seeked to position', { guildId, timestamp });
   } catch (error) {
     logError(error as Error, { context: 'Failed to seek' });
@@ -285,30 +256,23 @@ export async function playSong(guildId: string): Promise<void> {
   const song = queue.songs[queue.currentIndex];
 
   try {
-    // Create audio player if needed
     if (!queue.audioPlayer) {
       queue.audioPlayer = createAudioPlayerHandler();
       setupAudioPlayerHandlers(queue.audioPlayer, guildId);
     }
 
-    // Clear existing progress interval
     if (queue.progressInterval) {
       clearInterval(queue.progressInterval);
       queue.progressInterval = undefined;
     }
 
-    // Create audio resource
     const resource = await createAudioResourceFromSong(song, queue.volume);
 
-    // Subscribe connection to player
     if (queue.connection) {
       queue.connection.subscribe(queue.audioPlayer);
     }
 
-    // Play the resource
     queue.audioPlayer.play(resource);
-    
-    // Set start time for manual tracking
     queue.startTime = Date.now();
     queue.pausedTime = 0;
 
@@ -318,51 +282,46 @@ export async function playSong(guildId: string): Promise<void> {
       source: song.source,
     });
 
-    // Send Now Playing Message with updates
+    // Send Now Playing Message
     if (queue.textChannel) {
-        try {
-            const embed = createNowPlayingEmbed(song, queue, 0);
-            const buttons = createNowPlayingButtons(false, queue.loop);
-            
-            const message = await queue.textChannel.send({ embeds: [embed], components: buttons });
-            queue.nowPlayingMessage = message;
+      try {
+        const embed = createNowPlayingEmbed(song, queue, 0);
+        const buttons = createNowPlayingButtons(false, queue.loop);
+        
+        const message = await queue.textChannel.send({ embeds: [embed], components: buttons });
+        queue.nowPlayingMessage = message;
 
-            // Start animation interval (5s)
-            const interval = setInterval(async () => {
-                // Re-fetch queue to ensure it still exists and is playing
-                const currentQueue = getQueue(guildId);
-                
-                if (!currentQueue || !currentQueue.playing || !currentQueue.audioPlayer) {
-                    clearInterval(interval);
-                    return;
-                }
-                
-                // Calculate current time manually
-                let currentTime = 0;
-                if (currentQueue.startTime) {
-                    const now = Date.now();
-                    const currentPaused = !currentQueue.playing && currentQueue.lastPauseTime ? (now - currentQueue.lastPauseTime) : 0;
-                    currentTime = Math.floor((now - currentQueue.startTime - (currentQueue.pausedTime || 0) - currentPaused) / 1000);
-                }
-                
-                // Clamp time
-                if (currentTime < 0) currentTime = 0;
-                if (currentTime > song.duration) currentTime = song.duration;
+        const interval = setInterval(async () => {
+          const currentQueue = getQueue(guildId);
+          
+          if (!currentQueue || !currentQueue.playing || !currentQueue.audioPlayer) {
+            clearInterval(interval);
+            return;
+          }
+          
+          let currentTime = 0;
+          if (currentQueue.startTime) {
+            const now = Date.now();
+            const currentPaused = !currentQueue.playing && currentQueue.lastPauseTime ? (now - currentQueue.lastPauseTime) : 0;
+            currentTime = Math.floor((now - currentQueue.startTime - (currentQueue.pausedTime || 0) - currentPaused) / 1000);
+          }
+          
+          if (currentTime < 0) currentTime = 0;
+          if (currentTime > song.duration) currentTime = song.duration;
 
-                try {
-                    const newEmbed = createNowPlayingEmbed(song, currentQueue, currentTime);
-                    const newButtons = createNowPlayingButtons(!currentQueue.playing, currentQueue.loop);
-                    await message.edit({ embeds: [newEmbed], components: newButtons });
-                } catch (error) {
-                    // Stop updating if message deleted or rate limited
-                    clearInterval(interval);
-                }
-            }, 5000);
-            
-            queue.progressInterval = interval;
-        } catch (msgError) {
-            logError(msgError as Error, { context: 'Failed to send now playing message' });
-        }
+          try {
+            const newEmbed = createNowPlayingEmbed(song, currentQueue, currentTime);
+            const newButtons = createNowPlayingButtons(!currentQueue.playing, currentQueue.loop);
+            await message.edit({ embeds: [newEmbed], components: newButtons });
+          } catch {
+            clearInterval(interval);
+          }
+        }, 5000);
+        
+        queue.progressInterval = interval;
+      } catch (msgError) {
+        logError(msgError as Error, { context: 'Failed to send now playing message' });
+      }
     }
 
   } catch (error) {
@@ -378,7 +337,6 @@ export async function playSong(guildId: string): Promise<void> {
         .catch((e) => logError(e as Error, { context: 'Failed to send error message' }));
     }
 
-    // Try to play next song
     handleSongEnd(guildId);
   }
 }
@@ -393,9 +351,6 @@ export function updateVolume(guildId: string, volume: number): void {
     return;
   }
 
-  // Note: Volume changes will apply to next song
-  // To change current song volume, we'd need to recreate the resource
   queue.volume = volume;
-
   logger.info('Volume updated', { guildId, volume });
 }

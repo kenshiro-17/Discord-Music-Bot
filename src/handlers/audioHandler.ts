@@ -16,8 +16,9 @@ import { createNowPlayingEmbed } from '../utils/embedBuilder';
 import { createNowPlayingButtons } from '../utils/buttonBuilder';
 import * as fs from 'fs';
 import * as path from 'path';
+import play from 'play-dl';
 
-// Cookie path for yt-dlp authentication
+// Cookie path for yt-dlp authentication (fallback)
 const COOKIES_PATH = path.join(process.cwd(), 'cookies.txt');
 
 /**
@@ -95,14 +96,45 @@ async function handleSongEnd(guildId: string): Promise<void> {
 }
 
 /**
- * Creates audio resource from song using yt-dlp
+ * Creates audio resource from song using play-dl (primary) with yt-dlp fallback
  */
 async function createAudioResourceFromSong(song: Song, volume: number, seekTime: number = 0): Promise<AudioResource> {
   try {
     // Verify URL validity first
     if (!song.url) throw new Error('No URL provided for song');
 
-    logger.debug('Spawning yt-dlp process', { url: song.url, seekTime });
+    // Try play-dl first (more reliable for YouTube)
+    try {
+      logger.debug('Trying play-dl for streaming', { url: song.url, seekTime });
+      
+      const stream = await play.stream(song.url, {
+        seek: seekTime,
+      });
+
+      const resource = createAudioResource(stream.stream, {
+        inputType: stream.type,
+        inlineVolume: true,
+        metadata: {
+          title: song.title,
+        },
+      });
+
+      // Set volume
+      if (resource.volume) {
+        resource.volume.setVolume(volume / 100);
+      }
+
+      logger.debug('play-dl stream created successfully');
+      return resource;
+    } catch (playDlError) {
+      logger.warn('play-dl failed, falling back to yt-dlp', { 
+        error: (playDlError as Error).message,
+        url: song.url 
+      });
+    }
+
+    // Fallback to yt-dlp
+    logger.debug('Using yt-dlp fallback', { url: song.url, seekTime });
 
     const args = [
       '-o', '-',
@@ -130,7 +162,7 @@ async function createAudioResourceFromSong(song: Song, volume: number, seekTime:
 
     args.push('--', song.url);
 
-    const ytDlp = spawn('yt-dlp', args, { stdio: ['ignore', 'pipe', 'pipe'] }); // Capture stderr
+    const ytDlp = spawn('yt-dlp', args, { stdio: ['ignore', 'pipe', 'pipe'] });
 
     ytDlp.on('error', (error) => {
         logger.error('yt-dlp process error', { error: error.message });
@@ -148,7 +180,6 @@ async function createAudioResourceFromSong(song: Song, volume: number, seekTime:
         }
     });
 
-    // Handle stream errors
     ytDlp.stdout.on('error', (error) => {
         logger.error('yt-dlp stream error', { error: error.message });
     });

@@ -1,6 +1,8 @@
 import { Player } from 'discord-player';
 import { Client } from 'discord.js';
 import { logger, logError } from '../utils/logger';
+import { YoutubeiExtractor } from 'discord-player-youtubei';
+import { DefaultExtractors } from '@discord-player/extractor';
 
 // Singleton instance
 let player: Player | null = null;
@@ -14,8 +16,18 @@ export async function initializePlayer(client: Client): Promise<Player> {
   player = new Player(client);
 
   try {
-    await player.extractors.loadDefault();
+    // Register defaults first (Spotify, SoundCloud, etc.)
+    // Explicitly loading DefaultExtractors
+    await player.extractors.loadMulti(DefaultExtractors);
+    
+    // Register YouTubei extractor which is more reliable for YouTube
+    // We register it manually to ensure it takes precedence or is available
+    await player.extractors.register(YoutubeiExtractor, {
+      authentication: process.env.YOUTUBE_COOKIES || '' // Optional: pass cookies string if available
+    });
+
     logger.info('Discord Player extractors loaded');
+    logger.debug('Registered extractors', { list: player.extractors.store.keys() });
   } catch (error) {
     logger.error('Failed to load extractors', { error: (error as Error).message });
   }

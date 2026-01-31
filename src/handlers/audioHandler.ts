@@ -13,78 +13,41 @@ import { getQueue, skip, stop as stopQueue } from './queueManager';
 import { startInactivityTimer } from './voiceManager';
 import { createNowPlayingEmbed } from '../utils/embedBuilder';
 import { createNowPlayingButtons } from '../utils/buttonBuilder';
-import ytdl from '@distube/ytdl-core';
-import * as fs from 'fs';
-import * as path from 'path';
+import { Innertube, ClientType } from 'youtubei.js';
 
-// Cookie path
-const COOKIES_PATH = path.join(process.cwd(), 'cookies.txt');
-
-// Lazy-loaded agent - will be initialized on first use
-let ytdlAgent: ReturnType<typeof ytdl.createAgent> | undefined;
-let agentInitialized = false;
+// YouTube.js client instance - lazy loaded
+let innertube: Innertube | null = null;
+let innertubeInitializing = false;
 
 /**
- * Parse Netscape cookie file to ytdl-core cookie format
+ * Get or initialize the YouTube.js client
  */
-function parseCookiesFile(): ytdl.Cookie[] | undefined {
+async function getInnertube(): Promise<Innertube> {
+  if (innertube) return innertube;
+  
+  if (innertubeInitializing) {
+    // Wait for initialization to complete
+    while (innertubeInitializing && !innertube) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    if (innertube) return innertube;
+  }
+  
+  innertubeInitializing = true;
   try {
-    if (!fs.existsSync(COOKIES_PATH)) {
-      logger.warn('No cookies.txt file found at', { path: COOKIES_PATH });
-      return undefined;
-    }
-
-    const content = fs.readFileSync(COOKIES_PATH, 'utf-8');
-    const cookies: ytdl.Cookie[] = [];
-
-    const lines = content.split('\n');
-    for (const line of lines) {
-      // Skip comments and empty lines
-      if (line.startsWith('#') || line.trim() === '') continue;
-
-      const parts = line.split('\t');
-      if (parts.length >= 7) {
-        cookies.push({
-          domain: parts[0],
-          hostOnly: parts[1] !== 'TRUE',
-          path: parts[2],
-          secure: parts[3] === 'TRUE',
-          expirationDate: parseInt(parts[4]) || undefined,
-          name: parts[5],
-          value: parts[6].trim(), // Trim to remove any trailing whitespace/newlines
-        });
-      }
-    }
-
-    if (cookies.length > 0) {
-      logger.info('Loaded YouTube cookies', { count: cookies.length });
-      return cookies;
-    }
+    logger.info('Initializing YouTube.js client...');
+    innertube = await Innertube.create({
+      // Use iOS client which has fewer restrictions
+      client_type: ClientType.IOS,
+      generate_session_locally: true,
+    });
+    logger.info('YouTube.js client initialized successfully');
+    return innertube;
   } catch (error) {
-    logger.error('Failed to parse cookies file', { error: (error as Error).message });
+    innertubeInitializing = false;
+    logger.error('Failed to initialize YouTube.js client', { error: (error as Error).message });
+    throw error;
   }
-  return undefined;
-}
-
-/**
- * Get or initialize the ytdl agent (lazy loading to ensure cookies.txt exists)
- */
-function getYtdlAgent(): ReturnType<typeof ytdl.createAgent> | undefined {
-  if (!agentInitialized) {
-    agentInitialized = true;
-    const cookies = parseCookiesFile();
-    if (cookies && cookies.length > 0) {
-      try {
-        ytdlAgent = ytdl.createAgent(cookies);
-        logger.info('YTDL agent created with cookies');
-      } catch (error) {
-        logger.error('Failed to create YTDL agent', { error: (error as Error).message });
-      }
-    } else {
-      logger.warn('YTDL agent created without cookies - may get 403 errors');
-    }
-  }
-  return ytdlAgent;
 }
 
 /**
@@ -175,7 +138,7 @@ function extractVideoId(url: string): string | null {
 }
 
 /**
- * Creates audio resource from song using @distube/ytdl-core
+ * Creates audio resource from song using YouTube.js
  */
 async function createAudioResourceFromSong(song: Song, volume: number, seekTime: number = 0): Promise<AudioResource> {
   try {
@@ -186,32 +149,63 @@ async function createAudioResourceFromSong(song: Song, volume: number, seekTime:
       throw new Error('Could not extract video ID from URL');
     }
 
-    const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-    logger.debug('Creating stream with ytdl-core', { videoId, seekTime });
+    logger.debug('Creating stream with YouTube.js', { videoId, seekTime });
 
-    // ytdl options
-    const ytdlOptions: ytdl.downloadOptions = {
-      filter: 'audioonly',
-      quality: 'highestaudio',
-      highWaterMark: 1 << 25, // 32MB buffer
-      dlChunkSize: 0, // Disable chunking for better streaming
-    };
-
-    // Add agent with cookies if available (lazy-load to ensure cookies.txt exists)
-    const agent = getYtdlAgent();
-    if (agent) {
-      ytdlOptions.agent = agent;
+    // Get YouTube.js client
+    const yt = await getInnertube();
+    
+    // Get video info
+    const info = await yt.getBasicInfo(videoId);
+    
+    // Get audio-only format
+    const format = info.chooseFormat({
+      type: 'audio',
+      quality: 'best',
+    });
+    
+    if (!format) {
+      throw new Error('No suitable audio format found');
     }
 
-    // Create the stream
-    const stream = ytdl(videoUrl, ytdlOptions);
-
-    // Handle stream errors
-    stream.on('error', (error) => {
-      logger.error('ytdl stream error', { error: error.message, videoId });
+    logger.debug('Found audio format', { 
+      videoId, 
+      itag: format.itag,
+      mimeType: format.mime_type,
+      bitrate: format.bitrate,
     });
 
-    const resource = createAudioResource(stream, {
+    // Get the stream URL
+    const streamUrl = await format.decipher(yt.session.player);
+    
+    if (!streamUrl) {
+      throw new Error('Failed to decipher stream URL');
+    }
+
+    logger.debug('Got stream URL', { videoId });
+
+    // Create a readable stream from the URL using fetch
+    const response = await fetch(streamUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': '*/*',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Range': 'bytes=0-',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    if (!response.body) {
+      throw new Error('No response body');
+    }
+
+    // Convert web stream to Node.js readable stream
+    const { Readable } = await import('stream');
+    const nodeStream = Readable.fromWeb(response.body as import('stream/web').ReadableStream);
+
+    const resource = createAudioResource(nodeStream, {
       inputType: StreamType.Arbitrary,
       inlineVolume: true,
       metadata: {

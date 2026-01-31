@@ -14,7 +14,6 @@ import { startInactivityTimer } from './voiceManager';
 import { spawn } from 'child_process';
 import { createNowPlayingEmbed } from '../utils/embedBuilder';
 import { createNowPlayingButtons } from '../utils/buttonBuilder';
-import play from 'play-dl';
 
 /**
  * Creates and configures an audio player
@@ -91,18 +90,19 @@ async function handleSongEnd(guildId: string): Promise<void> {
 }
 
 /**
- * Fetches stream URL from cobalt.tools API (primary fallback)
+ * Fetches stream URL from cobalt.tools API
  */
 async function getCobaltStreamUrl(videoId: string): Promise<string | null> {
   const cobaltInstances = [
     'https://api.cobalt.tools',
-    'https://cobalt-api.kwiatekmiki.com',
+    'https://cobalt-api.kwiatekmiki.com', 
     'https://cobalt.api.timelessnesses.me',
+    'https://co.wuk.sh',
   ];
 
   for (const apiUrl of cobaltInstances) {
     try {
-      logger.debug('Trying cobalt instance', { apiUrl, videoId });
+      logger.debug('Trying Cobalt instance', { apiUrl, videoId });
       
       const response = await fetch(`${apiUrl}/api/json`, {
         method: 'POST',
@@ -116,78 +116,31 @@ async function getCobaltStreamUrl(videoId: string): Promise<string | null> {
           aFormat: 'opus',
           filenamePattern: 'basic',
         }),
-        signal: AbortSignal.timeout(10000), // 10 second timeout
+        signal: AbortSignal.timeout(15000), // 15 second timeout
       });
       
       if (!response.ok) {
-        logger.debug('Cobalt response not ok', { status: response.status });
+        logger.debug('Cobalt response not ok', { apiUrl, status: response.status });
         continue;
       }
       
       const data = await response.json() as any;
       
       if (data.status === 'stream' && data.url) {
-        logger.debug('Got stream URL from Cobalt', { apiUrl, videoId });
+        logger.info('Got stream URL from Cobalt', { apiUrl, videoId });
         return data.url;
       } else if (data.status === 'redirect' && data.url) {
-        logger.debug('Got redirect URL from Cobalt', { apiUrl, videoId });
+        logger.info('Got redirect URL from Cobalt', { apiUrl, videoId });
+        return data.url;
+      } else if (data.url) {
+        // Some instances just return the URL directly
+        logger.info('Got URL from Cobalt', { apiUrl, videoId });
         return data.url;
       } else {
-        logger.debug('Cobalt returned unexpected status', { status: data.status, data });
+        logger.debug('Cobalt returned unexpected response', { apiUrl, status: data.status });
       }
     } catch (error) {
       logger.debug('Cobalt instance failed', { apiUrl, error: (error as Error).message });
-      continue;
-    }
-  }
-  
-  return null;
-}
-
-/**
- * Fetches stream URL from Invidious API (secondary fallback)
- */
-async function getInvidiousStreamUrl(videoId: string): Promise<string | null> {
-  // Updated list of working Invidious instances
-  const instances = [
-    'https://vid.puffyan.us',
-    'https://invidious.snopyta.org',
-    'https://yewtu.be',
-    'https://invidious.kavin.rocks',
-    'https://inv.riverside.rocks',
-  ];
-
-  for (const instance of instances) {
-    try {
-      logger.debug('Trying Invidious instance', { instance, videoId });
-      
-      const response = await fetch(`${instance}/api/v1/videos/${videoId}`, {
-        signal: AbortSignal.timeout(8000), // 8 second timeout
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        },
-      });
-      
-      if (!response.ok) {
-        logger.debug('Invidious response not ok', { instance, status: response.status });
-        continue;
-      }
-      
-      const data = await response.json() as any;
-      
-      // Find best audio format
-      const audioFormats = data.adaptiveFormats?.filter((f: any) => 
-        f.type?.startsWith('audio/') && f.url
-      ) || [];
-      
-      if (audioFormats.length > 0) {
-        // Sort by bitrate and get best
-        audioFormats.sort((a: any, b: any) => (b.bitrate || 0) - (a.bitrate || 0));
-        logger.debug('Got stream URL from Invidious', { instance, videoId });
-        return audioFormats[0].url;
-      }
-    } catch (error) {
-      logger.debug('Invidious instance failed', { instance, error: (error as Error).message });
       continue;
     }
   }
@@ -212,70 +165,27 @@ function extractVideoId(url: string): string | null {
 }
 
 /**
- * Creates audio resource from song using play-dl (primary) with Invidious fallback
+ * Creates audio resource from song using Cobalt API only
  */
 async function createAudioResourceFromSong(song: Song, volume: number, seekTime: number = 0): Promise<AudioResource> {
   try {
     // Verify URL validity first
     if (!song.url) throw new Error('No URL provided for song');
 
-    // Extract video ID for consistent URL format
+    // Extract video ID
     const videoId = extractVideoId(song.url);
-    const cleanUrl = videoId ? `https://www.youtube.com/watch?v=${videoId}` : song.url;
-
-    // Try play-dl first (most reliable)
-    try {
-      logger.debug('Trying play-dl for streaming', { url: cleanUrl, seekTime });
-      
-      // Validate the URL first
-      const validated = play.yt_validate(cleanUrl);
-      if (validated !== 'video') {
-        throw new Error(`Invalid video URL: ${validated}`);
-      }
-
-      const stream = await play.stream(cleanUrl, {
-        seek: seekTime,
-      });
-
-      const resource = createAudioResource(stream.stream, {
-        inputType: stream.type,
-        inlineVolume: true,
-        metadata: {
-          title: song.title,
-        },
-      });
-
-      if (resource.volume) {
-        resource.volume.setVolume(volume / 100);
-      }
-
-      logger.debug('play-dl stream created successfully');
-      return resource;
-    } catch (playDlError) {
-      logger.warn('play-dl failed, trying Invidious fallback', { 
-        error: (playDlError as Error).message,
-        url: cleanUrl 
-      });
-    }
-
-    // Fallback to Cobalt API first, then Invidious
     if (!videoId) {
       throw new Error('Could not extract video ID from URL');
     }
 
-    // Try Cobalt first (most reliable)
-    logger.debug('Trying Cobalt fallback', { videoId });
-    let streamUrl = await getCobaltStreamUrl(videoId);
-    
-    // If Cobalt fails, try Invidious
-    if (!streamUrl) {
-      logger.debug('Cobalt failed, trying Invidious fallback', { videoId });
-      streamUrl = await getInvidiousStreamUrl(videoId);
-    }
+    logger.debug('Getting stream URL from Cobalt', { videoId });
+    const streamUrl = await getCobaltStreamUrl(videoId);
     
     if (!streamUrl) {
-      throw new Error('All streaming methods failed');
+      throw new Error('Failed to get stream URL from Cobalt');
     }
+
+    logger.debug('Streaming with ffmpeg', { videoId, seekTime });
 
     // Use ffmpeg to stream from the URL
     const ffmpeg = spawn('ffmpeg', [
@@ -297,10 +207,16 @@ async function createAudioResourceFromSong(song: Song, volume: number, seekTime:
     });
 
     ffmpeg.stderr.on('data', (data) => {
-      // FFmpeg outputs info to stderr, only log errors
+      // FFmpeg outputs info to stderr, only log actual errors
       const msg = data.toString();
       if (msg.includes('Error') || msg.includes('error')) {
         logger.warn(`ffmpeg stderr: ${msg}`);
+      }
+    });
+
+    ffmpeg.on('close', (code) => {
+      if (code !== 0 && code !== null) {
+        logger.debug('ffmpeg process closed', { code });
       }
     });
 
@@ -316,7 +232,7 @@ async function createAudioResourceFromSong(song: Song, volume: number, seekTime:
       resource.volume.setVolume(volume / 100);
     }
 
-    logger.debug('Invidious stream created successfully');
+    logger.debug('Audio resource created successfully', { videoId });
     return resource;
   } catch (error) {
     logError(error as Error, {

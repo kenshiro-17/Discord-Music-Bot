@@ -117,7 +117,6 @@ function setupErrorHandlers(): void {
   });
 }
 
-import { initializeLavalink } from './services/lavalink';
 
 /**
  * Starts the bot
@@ -150,8 +149,9 @@ async function start(): Promise<void> {
     // Create client
     const client = createClient();
 
-    // Initialize Lavalink
-    initializeLavalink(client);
+    // Initialize discord-player
+    const { initializePlayer } = await import('./services/player');
+    await initializePlayer(client);
 
     // Client error logging
     client.on('error', (error) => logError(error, { context: 'Discord Client Error' }));

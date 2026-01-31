@@ -10,7 +10,6 @@ import {
   Message,
 } from 'discord.js';
 import { AudioPlayer } from '@discordjs/voice';
-import { Player } from 'shoukaku';
 
 /**
  * Represents a song in the queue
@@ -46,7 +45,7 @@ export interface ServerQueue {
   /** Voice channel bot is connected to */
   voiceChannel: VoiceChannel;
   /** Active voice connection (Lavalink Player) */
-  connection: Player | null;
+  connection: any;
   /** Queue of songs */
   songs: Song[];
   /** Current volume (0-200) */

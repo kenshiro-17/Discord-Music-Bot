@@ -1,8 +1,7 @@
 import { VoiceChannel } from 'discord.js';
 import { logger, logError } from '../utils/logger';
 import { getQueue, deleteQueue } from './queueManager';
-import { getPlayer, destroyPlayer } from '../services/lavalink';
-import { Player } from 'shoukaku';
+import { getVoiceConnection, joinVoiceChannel } from '@discordjs/voice';
 
 /**
  * Inactivity timeout trackers
@@ -10,17 +9,17 @@ import { Player } from 'shoukaku';
 const inactivityTimers = new Map<string, NodeJS.Timeout>();
 
 /**
- * Joins a voice channel using Lavalink
+ * Joins a voice channel
  */
 export async function joinVoiceChannelHandler(
   channel: VoiceChannel
-): Promise<Player> {
+): Promise<any> {
   try {
-    const player = await getPlayer(channel.guild.id, channel.id);
-
-    if (!player) {
-      throw new Error('Failed to create Lavalink player');
-    }
+    const connection = joinVoiceChannel({
+      channelId: channel.id,
+      guildId: channel.guild.id,
+      adapterCreator: channel.guild.voiceAdapterCreator as any,
+    });
 
     logger.info('Joined voice channel', {
       guildId: channel.guild.id,
@@ -30,7 +29,7 @@ export async function joinVoiceChannelHandler(
     // Clear any existing inactivity timer
     clearInactivityTimer(channel.guild.id);
 
-    return player;
+    return connection;
   } catch (error) {
     logError(error as Error, {
       context: 'Failed to join voice channel',
@@ -44,7 +43,10 @@ export async function joinVoiceChannelHandler(
  * Leaves a voice channel
  */
 export async function leaveVoiceChannel(guildId: string): Promise<void> {
-  await destroyPlayer(guildId);
+  const connection = getVoiceConnection(guildId);
+  if (connection) {
+    connection.destroy();
+  }
   logger.info('Left voice channel', { guildId });
 
   // Clean up queue
@@ -63,6 +65,7 @@ export function startInactivityTimer(guildId: string, timeoutSeconds: number = 3
 
   const timer = setTimeout(() => {
     const queue = getQueue(guildId);
+    // Logic needs update for discord-player check
     if (queue && !queue.playing) {
       logger.info('Auto-disconnecting due to inactivity', { guildId });
       leaveVoiceChannel(guildId);

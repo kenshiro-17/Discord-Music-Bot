@@ -20,13 +20,17 @@ import * as path from 'path';
 // Cookie path
 const COOKIES_PATH = path.join(process.cwd(), 'cookies.txt');
 
+// Lazy-loaded agent - will be initialized on first use
+let ytdlAgent: ReturnType<typeof ytdl.createAgent> | undefined;
+let agentInitialized = false;
+
 /**
  * Parse Netscape cookie file to ytdl-core cookie format
  */
 function parseCookiesFile(): ytdl.Cookie[] | undefined {
   try {
     if (!fs.existsSync(COOKIES_PATH)) {
-      logger.warn('No cookies.txt file found');
+      logger.warn('No cookies.txt file found at', { path: COOKIES_PATH });
       return undefined;
     }
 
@@ -47,7 +51,7 @@ function parseCookiesFile(): ytdl.Cookie[] | undefined {
           secure: parts[3] === 'TRUE',
           expirationDate: parseInt(parts[4]) || undefined,
           name: parts[5],
-          value: parts[6],
+          value: parts[6].trim(), // Trim to remove any trailing whitespace/newlines
         });
       }
     }
@@ -62,16 +66,25 @@ function parseCookiesFile(): ytdl.Cookie[] | undefined {
   return undefined;
 }
 
-// Load cookies once at startup
-const ytdlCookies = parseCookiesFile();
-
-// Create ytdl agent with cookies
-const ytdlAgent = ytdlCookies ? ytdl.createAgent(ytdlCookies) : undefined;
-
-if (ytdlAgent) {
-  logger.info('YTDL agent created with cookies');
-} else {
-  logger.warn('YTDL agent created without cookies - may get 403 errors');
+/**
+ * Get or initialize the ytdl agent (lazy loading to ensure cookies.txt exists)
+ */
+function getYtdlAgent(): ReturnType<typeof ytdl.createAgent> | undefined {
+  if (!agentInitialized) {
+    agentInitialized = true;
+    const cookies = parseCookiesFile();
+    if (cookies && cookies.length > 0) {
+      try {
+        ytdlAgent = ytdl.createAgent(cookies);
+        logger.info('YTDL agent created with cookies');
+      } catch (error) {
+        logger.error('Failed to create YTDL agent', { error: (error as Error).message });
+      }
+    } else {
+      logger.warn('YTDL agent created without cookies - may get 403 errors');
+    }
+  }
+  return ytdlAgent;
 }
 
 /**
@@ -184,9 +197,10 @@ async function createAudioResourceFromSong(song: Song, volume: number, seekTime:
       dlChunkSize: 0, // Disable chunking for better streaming
     };
 
-    // Add agent with cookies if available
-    if (ytdlAgent) {
-      ytdlOptions.agent = ytdlAgent;
+    // Add agent with cookies if available (lazy-load to ensure cookies.txt exists)
+    const agent = getYtdlAgent();
+    if (agent) {
+      ytdlOptions.agent = agent;
     }
 
     // Create the stream

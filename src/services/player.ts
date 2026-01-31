@@ -13,25 +13,25 @@ let player: Player | null = null;
 export async function initializePlayer(client: Client): Promise<Player> {
   if (player) return player;
 
-  // Initialize without invalid options
   player = new Player(client);
 
   try {
     logger.info('Registering extractors...');
 
-    // 1. Register YouTubei Extractor (Priority)
+    // 1. Load Default Extractors
+    logger.info(`Loading defaults: ${DefaultExtractors.length} extractors`);
+    await player.extractors.loadMulti(DefaultExtractors);
+    
+    // 2. Register YouTubei Extractor
+    logger.info('Registering YoutubeiExtractor...');
     await player.extractors.register(YoutubeiExtractor, {
       authentication: process.env.YOUTUBE_COOKIES || '' 
     });
-    logger.info('Registered: YoutubeiExtractor');
-
-    // 2. Load Default Extractors (Spotify, SoundCloud, etc.)
-    await player.extractors.loadMulti(DefaultExtractors);
-    logger.info('Registered: DefaultExtractors');
 
     // Debug: List all registered extractors
+    // Using internal store access if public API doesn't show it
     const registered = player.extractors.store.keys();
-    logger.info(`Total Extractors: ${Array.from(registered).join(', ')}`);
+    logger.info(`Total Registered Extractors: ${Array.from(registered).join(', ')}`);
 
   } catch (error) {
     logger.error('Failed to load extractors', { error: (error as Error).message });
@@ -48,6 +48,11 @@ export async function initializePlayer(client: Client): Promise<Player> {
 
   player.events.on('playerError', (queue: any, error: Error) => {
     logError(error, { context: 'Player Connection Error', guild: queue.guild.id });
+  });
+
+  // Debug events
+  player.events.on('debug', (queue: any, message: string) => {
+    logger.debug('Player Debug', { message });
   });
 
   return player;

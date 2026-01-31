@@ -138,7 +138,7 @@ function extractVideoId(url: string): string | null {
 }
 
 /**
- * Creates audio resource from song using YouTube.js
+ * Creates audio resource from song using YouTube.js built-in download
  */
 async function createAudioResourceFromSong(song: Song, volume: number, seekTime: number = 0): Promise<AudioResource> {
   try {
@@ -154,56 +154,29 @@ async function createAudioResourceFromSong(song: Song, volume: number, seekTime:
     // Get YouTube.js client
     const yt = await getInnertube();
     
-    // Get video info
-    const info = await yt.getBasicInfo(videoId);
+    // Get video info using getInfo for full streaming support
+    const info = await yt.getInfo(videoId);
     
-    // Get audio-only format
-    const format = info.chooseFormat({
+    logger.debug('Got video info', { 
+      videoId, 
+      title: info.basic_info.title,
+      duration: info.basic_info.duration,
+    });
+
+    // Use YouTube.js built-in download which handles all the complexity
+    // This uses the proper client headers and session
+    const stream = await yt.download(videoId, {
       type: 'audio',
       quality: 'best',
-    });
-    
-    if (!format) {
-      throw new Error('No suitable audio format found');
-    }
-
-    logger.debug('Found audio format', { 
-      videoId, 
-      itag: format.itag,
-      mimeType: format.mime_type,
-      bitrate: format.bitrate,
+      // Use iOS client which has fewer restrictions
+      client: 'IOS',
     });
 
-    // Get the stream URL
-    const streamUrl = await format.decipher(yt.session.player);
-    
-    if (!streamUrl) {
-      throw new Error('Failed to decipher stream URL');
-    }
+    logger.debug('Got download stream', { videoId });
 
-    logger.debug('Got stream URL', { videoId });
-
-    // Create a readable stream from the URL using fetch
-    const response = await fetch(streamUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': '*/*',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Range': 'bytes=0-',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    if (!response.body) {
-      throw new Error('No response body');
-    }
-
-    // Convert web stream to Node.js readable stream
+    // Convert web ReadableStream to Node.js Readable
     const { Readable } = await import('stream');
-    const nodeStream = Readable.fromWeb(response.body as import('stream/web').ReadableStream);
+    const nodeStream = Readable.fromWeb(stream as import('stream/web').ReadableStream);
 
     const resource = createAudioResource(nodeStream, {
       inputType: StreamType.Arbitrary,

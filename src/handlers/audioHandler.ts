@@ -91,25 +91,87 @@ async function handleSongEnd(guildId: string): Promise<void> {
 }
 
 /**
- * Fetches stream URL from Invidious API (fallback method)
+ * Fetches stream URL from cobalt.tools API (primary fallback)
+ */
+async function getCobaltStreamUrl(videoId: string): Promise<string | null> {
+  const cobaltInstances = [
+    'https://api.cobalt.tools',
+    'https://cobalt-api.kwiatekmiki.com',
+    'https://cobalt.api.timelessnesses.me',
+  ];
+
+  for (const apiUrl of cobaltInstances) {
+    try {
+      logger.debug('Trying cobalt instance', { apiUrl, videoId });
+      
+      const response = await fetch(`${apiUrl}/api/json`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          url: `https://www.youtube.com/watch?v=${videoId}`,
+          isAudioOnly: true,
+          aFormat: 'opus',
+          filenamePattern: 'basic',
+        }),
+        signal: AbortSignal.timeout(10000), // 10 second timeout
+      });
+      
+      if (!response.ok) {
+        logger.debug('Cobalt response not ok', { status: response.status });
+        continue;
+      }
+      
+      const data = await response.json() as any;
+      
+      if (data.status === 'stream' && data.url) {
+        logger.debug('Got stream URL from Cobalt', { apiUrl, videoId });
+        return data.url;
+      } else if (data.status === 'redirect' && data.url) {
+        logger.debug('Got redirect URL from Cobalt', { apiUrl, videoId });
+        return data.url;
+      } else {
+        logger.debug('Cobalt returned unexpected status', { status: data.status, data });
+      }
+    } catch (error) {
+      logger.debug('Cobalt instance failed', { apiUrl, error: (error as Error).message });
+      continue;
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Fetches stream URL from Invidious API (secondary fallback)
  */
 async function getInvidiousStreamUrl(videoId: string): Promise<string | null> {
-  // List of public Invidious instances
+  // Updated list of working Invidious instances
   const instances = [
-    'https://inv.nadeko.net',
-    'https://invidious.nerdvpn.de',
-    'https://invidious.jing.rocks',
-    'https://yt.artemislena.eu',
-    'https://invidious.privacyredirect.com',
+    'https://vid.puffyan.us',
+    'https://invidious.snopyta.org',
+    'https://yewtu.be',
+    'https://invidious.kavin.rocks',
+    'https://inv.riverside.rocks',
   ];
 
   for (const instance of instances) {
     try {
+      logger.debug('Trying Invidious instance', { instance, videoId });
+      
       const response = await fetch(`${instance}/api/v1/videos/${videoId}`, {
-        signal: AbortSignal.timeout(5000), // 5 second timeout
+        signal: AbortSignal.timeout(8000), // 8 second timeout
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        },
       });
       
-      if (!response.ok) continue;
+      if (!response.ok) {
+        logger.debug('Invidious response not ok', { instance, status: response.status });
+        continue;
+      }
       
       const data = await response.json() as any;
       
@@ -196,13 +258,20 @@ async function createAudioResourceFromSong(song: Song, volume: number, seekTime:
       });
     }
 
-    // Fallback to Invidious API
+    // Fallback to Cobalt API first, then Invidious
     if (!videoId) {
       throw new Error('Could not extract video ID from URL');
     }
 
-    logger.debug('Trying Invidious fallback', { videoId });
-    const streamUrl = await getInvidiousStreamUrl(videoId);
+    // Try Cobalt first (most reliable)
+    logger.debug('Trying Cobalt fallback', { videoId });
+    let streamUrl = await getCobaltStreamUrl(videoId);
+    
+    // If Cobalt fails, try Invidious
+    if (!streamUrl) {
+      logger.debug('Cobalt failed, trying Invidious fallback', { videoId });
+      streamUrl = await getInvidiousStreamUrl(videoId);
+    }
     
     if (!streamUrl) {
       throw new Error('All streaming methods failed');

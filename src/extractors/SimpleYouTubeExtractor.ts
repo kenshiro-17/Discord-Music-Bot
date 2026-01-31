@@ -2,6 +2,40 @@ import { BaseExtractor, Track } from 'discord-player';
 import ytdl from '@distube/ytdl-core';
 import { logger } from '../utils/logger';
 
+// Cookie parser helper
+function parseCookies(cookieString: string): any[] {
+    if (!cookieString) return [];
+    return cookieString.split('\n')
+        .filter(line => line && !line.startsWith('#'))
+        .map(line => {
+            const parts = line.split('\t');
+            if (parts.length < 7) return null;
+            return {
+                domain: parts[0],
+                path: parts[2],
+                secure: parts[3] === 'TRUE',
+                expiration: parseFloat(parts[4]),
+                name: parts[5],
+                value: parts[6]
+            };
+        })
+        .filter(c => c !== null);
+}
+
+// Create agent globally if possible
+let ytdlAgent: any = null;
+try {
+    if (process.env.YOUTUBE_COOKIES) {
+        const cookies = parseCookies(process.env.YOUTUBE_COOKIES);
+        if (cookies.length > 0) {
+            ytdlAgent = ytdl.createAgent(cookies);
+            logger.info(`Created YTDL Agent with ${cookies.length} cookies`);
+        }
+    }
+} catch (e) {
+    logger.error('Failed to create YTDL Agent', { error: (e as Error).message });
+}
+
 export default class SimpleYouTubeExtractor extends BaseExtractor {
     static identifier = 'com.discord-player.simpleyoutubeextractor';
 
@@ -15,7 +49,11 @@ export default class SimpleYouTubeExtractor extends BaseExtractor {
     async handle(query: string, _context: any) {
         try {
             logger.debug(`SimpleYouTubeExtractor handling: ${query}`);
-            const info = await ytdl.getInfo(query);
+            
+            const options: any = {};
+            if (ytdlAgent) options.agent = ytdlAgent;
+
+            const info = await ytdl.getInfo(query, options);
             
             const track = new Track(this.context.player, {
                 title: info.videoDetails.title,
@@ -43,12 +81,16 @@ export default class SimpleYouTubeExtractor extends BaseExtractor {
 
     async stream(info: Track) {
         logger.debug(`SimpleYouTubeExtractor streaming: ${info.title}`);
-        // Use highWaterMark to prevent stuttering
-        return ytdl(info.url, {
+        
+        const options: any = {
             filter: 'audioonly',
             quality: 'highestaudio',
             highWaterMark: 1 << 25,
             dlChunkSize: 0,
-        });
+        };
+        
+        if (ytdlAgent) options.agent = ytdlAgent;
+
+        return ytdl(info.url, options);
     }
 }

@@ -14,12 +14,7 @@ import { startInactivityTimer } from './voiceManager';
 import { spawn } from 'child_process';
 import { createNowPlayingEmbed } from '../utils/embedBuilder';
 import { createNowPlayingButtons } from '../utils/buttonBuilder';
-import * as fs from 'fs';
-import * as path from 'path';
 import play from 'play-dl';
-
-// Cookie path for yt-dlp authentication (fallback)
-const COOKIES_PATH = path.join(process.cwd(), 'cookies.txt');
 
 /**
  * Creates and configures an audio player
@@ -96,14 +91,73 @@ async function handleSongEnd(guildId: string): Promise<void> {
 }
 
 /**
- * Creates audio resource from song using play-dl (primary) with yt-dlp fallback
+ * Fetches stream URL from Invidious API (fallback method)
+ */
+async function getInvidiousStreamUrl(videoId: string): Promise<string | null> {
+  // List of public Invidious instances
+  const instances = [
+    'https://inv.nadeko.net',
+    'https://invidious.nerdvpn.de',
+    'https://invidious.jing.rocks',
+    'https://yt.artemislena.eu',
+    'https://invidious.privacyredirect.com',
+  ];
+
+  for (const instance of instances) {
+    try {
+      const response = await fetch(`${instance}/api/v1/videos/${videoId}`, {
+        signal: AbortSignal.timeout(5000), // 5 second timeout
+      });
+      
+      if (!response.ok) continue;
+      
+      const data = await response.json() as any;
+      
+      // Find best audio format
+      const audioFormats = data.adaptiveFormats?.filter((f: any) => 
+        f.type?.startsWith('audio/') && f.url
+      ) || [];
+      
+      if (audioFormats.length > 0) {
+        // Sort by bitrate and get best
+        audioFormats.sort((a: any, b: any) => (b.bitrate || 0) - (a.bitrate || 0));
+        logger.debug('Got stream URL from Invidious', { instance, videoId });
+        return audioFormats[0].url;
+      }
+    } catch (error) {
+      logger.debug('Invidious instance failed', { instance, error: (error as Error).message });
+      continue;
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Extracts video ID from YouTube URL
+ */
+function extractVideoId(url: string): string | null {
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
+    /^([a-zA-Z0-9_-]{11})$/,
+  ];
+  
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match) return match[1];
+  }
+  return null;
+}
+
+/**
+ * Creates audio resource from song using play-dl (primary) with Invidious fallback
  */
 async function createAudioResourceFromSong(song: Song, volume: number, seekTime: number = 0): Promise<AudioResource> {
   try {
     // Verify URL validity first
     if (!song.url) throw new Error('No URL provided for song');
 
-    // Try play-dl first (more reliable for YouTube)
+    // Try play-dl first (most reliable)
     try {
       logger.debug('Trying play-dl for streaming', { url: song.url, seekTime });
       
@@ -119,7 +173,6 @@ async function createAudioResourceFromSong(song: Song, volume: number, seekTime:
         },
       });
 
-      // Set volume
       if (resource.volume) {
         resource.volume.setVolume(volume / 100);
       }
@@ -127,76 +180,65 @@ async function createAudioResourceFromSong(song: Song, volume: number, seekTime:
       logger.debug('play-dl stream created successfully');
       return resource;
     } catch (playDlError) {
-      logger.warn('play-dl failed, falling back to yt-dlp', { 
+      logger.warn('play-dl failed, trying Invidious fallback', { 
         error: (playDlError as Error).message,
         url: song.url 
       });
     }
 
-    // Fallback to yt-dlp
-    logger.debug('Using yt-dlp fallback', { url: song.url, seekTime });
-
-    const args = [
-      '-o', '-',
-      '-q',
-      '--no-playlist',
-      '--no-warnings',
-      '--buffer-size', '16K',
-      '--socket-timeout', '15',
-      '--no-check-certificate',
-    ];
-
-    // Add cookies if available
-    if (fs.existsSync(COOKIES_PATH)) {
-      args.push('--cookies', COOKIES_PATH);
-      logger.debug('Using cookies for yt-dlp playback');
-    } else {
-      // Without cookies, use alternative client to bypass restrictions
-      args.push('--extractor-args', 'youtube:player_client=tv_embedded');
-      logger.debug('No cookies, using tv_embedded client');
+    // Fallback to Invidious API
+    const videoId = extractVideoId(song.url);
+    if (!videoId) {
+      throw new Error('Could not extract video ID from URL');
     }
 
-    if (seekTime > 0) {
-        args.push('--download-sections', `*${seekTime}-inf`);
+    logger.debug('Trying Invidious fallback', { videoId });
+    const streamUrl = await getInvidiousStreamUrl(videoId);
+    
+    if (!streamUrl) {
+      throw new Error('All streaming methods failed');
     }
 
-    args.push('--', song.url);
+    // Use ffmpeg to stream from the URL
+    const ffmpeg = spawn('ffmpeg', [
+      '-reconnect', '1',
+      '-reconnect_streamed', '1',
+      '-reconnect_delay_max', '5',
+      '-i', streamUrl,
+      '-ss', seekTime.toString(),
+      '-vn',
+      '-acodec', 'libopus',
+      '-f', 'opus',
+      '-ar', '48000',
+      '-ac', '2',
+      'pipe:1',
+    ], { stdio: ['ignore', 'pipe', 'pipe'] });
 
-    const ytDlp = spawn('yt-dlp', args, { stdio: ['ignore', 'pipe', 'pipe'] });
-
-    ytDlp.on('error', (error) => {
-        logger.error('yt-dlp process error', { error: error.message });
+    ffmpeg.on('error', (error) => {
+      logger.error('ffmpeg process error', { error: error.message });
     });
 
-    ytDlp.stderr.on('data', (data) => {
-        logger.warn(`yt-dlp stderr: ${data.toString()}`);
+    ffmpeg.stderr.on('data', (data) => {
+      // FFmpeg outputs info to stderr, only log errors
+      const msg = data.toString();
+      if (msg.includes('Error') || msg.includes('error')) {
+        logger.warn(`ffmpeg stderr: ${msg}`);
+      }
     });
 
-    ytDlp.on('close', (code) => {
-        if (code !== 0) {
-            logger.error(`yt-dlp process exited with code ${code}`);
-        } else {
-            logger.debug('yt-dlp process finished successfully');
-        }
-    });
-
-    ytDlp.stdout.on('error', (error) => {
-        logger.error('yt-dlp stream error', { error: error.message });
-    });
-
-    const resource = createAudioResource(ytDlp.stdout, {
-      inputType: StreamType.Arbitrary,
+    const resource = createAudioResource(ffmpeg.stdout, {
+      inputType: StreamType.OggOpus,
       inlineVolume: true,
       metadata: {
         title: song.title,
       },
     });
 
-    // Set volume
     if (resource.volume) {
       resource.volume.setVolume(volume / 100);
     }
 
+    logger.debug('Invidious stream created successfully');
     return resource;
   } catch (error) {
     logError(error as Error, {

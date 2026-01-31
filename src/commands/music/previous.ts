@@ -1,10 +1,8 @@
 import { SlashCommandBuilder, ChatInputCommandInteraction } from 'discord.js';
 import { previous } from '../../handlers/audioHandler';
-import { validateMusicCommand } from '../../utils/validators';
 import { createSuccessEmbed } from '../../utils/embedBuilder';
 import { ValidationError } from '../../utils/errorHandler';
 import { styleResponse } from '../../utils/persona';
-import { getQueue } from '../../handlers/queueManager';
 
 export default {
   data: new SlashCommandBuilder()
@@ -12,11 +10,6 @@ export default {
     .setDescription('Play the previous song'),
 
   async execute(interaction: ChatInputCommandInteraction) {
-    const queue = getQueue(interaction.guildId!);
-    // Validation might fail if queue manager isn't synced, but let's try
-    // Better to use discord-player queue check?
-    // For now, let's just call previous() and handle error
-    
     await interaction.deferReply();
 
     try {

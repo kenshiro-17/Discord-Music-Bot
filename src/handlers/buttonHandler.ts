@@ -103,7 +103,7 @@ async function handlePlayPause(interaction: ButtonInteraction, queue: any): Prom
 /**
  * Handles next button
  */
-async function handleNext(interaction: ButtonInteraction, queue: any): Promise<void> {
+async function handleNext(interaction: ButtonInteraction, _queue: any): Promise<void> {
   const skipResult = skipSong(interaction.guildId!);
 
   if (!skipResult.success) {
@@ -135,7 +135,7 @@ async function handleNext(interaction: ButtonInteraction, queue: any): Promise<v
 /**
  * Handles previous button
  */
-async function handlePrevious(interaction: ButtonInteraction, queue: any): Promise<void> {
+async function handlePrevious(interaction: ButtonInteraction, _queue: any): Promise<void> {
   const previousResult = previous(interaction.guildId!);
 
   if (!previousResult.success) {

@@ -1,7 +1,5 @@
 import { Collection, TextChannel, VoiceChannel } from 'discord.js';
 import { ServerQueue, Song, LoopMode } from '../types';
-import { config } from '../config/config';
-import { logger } from '../utils/logger';
 import { getPlayer } from '../services/player';
 import { GuildQueue, Track, QueueRepeatMode } from 'discord-player';
 
@@ -35,7 +33,7 @@ export function getQueue(guildId: string): ServerQueue | undefined {
     songs: dpQueue.tracks.toArray().map(trackToSong),
     volume: dpQueue.node.volume,
     playing: dpQueue.node.isPlaying(),
-    loop: dpQueue.repeatMode === 0 ? 'off' : (dpQueue.repeatMode === 1 ? 'song' : 'queue'),
+    loop: dpQueue.repeatMode === QueueRepeatMode.OFF ? 'off' : (dpQueue.repeatMode === QueueRepeatMode.TRACK ? 'song' : 'queue'),
     audioPlayer: null, // Legacy
     currentIndex: 0, // discord-player handles index internally, songs array is usually remaining songs
     startTime: 0, // Not easily exposed
@@ -128,7 +126,7 @@ export function setLoop(guildId: string, mode: LoopMode) {
     const queue = player?.nodes.get(guildId);
     if (queue) {
         // Map mode to discord-player RepeatMode (0: OFF, 1: TRACK, 2: QUEUE, 3: AUTOPLAY)
-        let dpMode = QueueRepeatMode.OFF;
+        let dpMode: QueueRepeatMode = QueueRepeatMode.OFF;
         if (mode === 'song') dpMode = QueueRepeatMode.TRACK;
         if (mode === 'queue') dpMode = QueueRepeatMode.QUEUE;
         queue.setRepeatMode(dpMode);
@@ -161,7 +159,17 @@ export function jumpToSong(guildId: string, index: number) {
 export function createQueue() { return {}; }
 export function addSong() { return { success: true }; }
 export function addSongs() { return { success: true }; }
-export function removeSong() { return { success: true }; }
+
+export function removeSong(guildId: string, index: number) {
+    const player = getPlayer();
+    const queue = player?.nodes.get(guildId);
+    if (queue) {
+        queue.node.remove(index);
+        return { success: true };
+    }
+    return { success: false, error: 'No queue' };
+}
+
 export function clearQueue(guildId: string) {
     const player = getPlayer();
     const queue = player?.nodes.get(guildId);
@@ -170,5 +178,19 @@ export function clearQueue(guildId: string) {
         return { success: true };
     }
     return { success: false, error: 'No queue' };
+}
+
+export function getCurrentSong(guildId: string): Song | undefined {
+    const player = getPlayer();
+    const queue = player?.nodes.get(guildId);
+    if (queue && queue.currentTrack) {
+        return trackToSong(queue.currentTrack);
+    }
+    return undefined;
+}
+
+export function getAllQueues() {
+    // Return empty collection for now to satisfy metrics types, or implement mapping
+    return new Collection<string, ServerQueue>();
 }
 

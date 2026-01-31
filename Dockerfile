@@ -24,27 +24,39 @@ COPY src ./src
 # Build TypeScript
 RUN npm run build
 
-# Production stage with Java + Node.js
-FROM eclipse-temurin:21-jre-alpine
+# Production stage with Java + Node.js (Debian based for better compatibility)
+FROM eclipse-temurin:21-jre
 
 WORKDIR /app
 
 # Install Node.js, ffmpeg, and other dependencies
-RUN apk add --no-cache \
-    nodejs \
-    npm \
-    ffmpeg \
+# Note: We need to install Node.js 20.x from nodesource or similar, 
+# but simply using the default repo nodejs might be old.
+# Let's use a multi-stage approach or just install what's available if recent enough.
+# Actually, easiest way is to use a Node image and install Java, or Java image and install Node.
+# Let's stick to installing Node on the Java image.
+
+RUN apt-get update && apt-get install -y \
     curl \
-    python3 \
+    gnupg \
+    ffmpeg \
     netcat-openbsd \
-    bash
+    python3 \
+    build-essential \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && npm install -g npm@latest \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install yt-dlp (latest)
 RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp && \
     chmod a+rx /usr/local/bin/yt-dlp
 
-# Create lavalink directory
-RUN mkdir -p /app/lavalink /app/logs
+# Create lavalink directory and user
+RUN mkdir -p /app/lavalink /app/logs && \
+    groupadd -r tc && useradd -r -g tc -G audio,video tc && \
+    chown -R tc:tc /app
 
 # Download Lavalink
 RUN curl -L https://github.com/lavalink-devs/Lavalink/releases/download/4.0.8/Lavalink.jar \
@@ -67,13 +79,16 @@ COPY start.sh /app/start.sh
 RUN chmod +x /app/start.sh
 
 # Ensure proper permissions
-RUN chmod -R 755 /app
+RUN chown -R tc:tc /app
 
-# Health check (uses PORT env variable, defaults to 8080)
+# Switch to non-root user
+USER tc
+
+# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD node -e "const port = process.env.PORT || process.env.HEALTH_CHECK_PORT || '8080'; require('http').get('http://localhost:' + port + '/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
-# Expose ports (8080 for health check, 2333 for Lavalink internal)
+# Expose ports
 EXPOSE 8080
 EXPOSE 2333
 

@@ -107,8 +107,7 @@ async function createAudioResourceFromSong(song: Song, volume: number, seekTime:
     const args = [
       '-o', '-',
       '-q',
-      // Use very flexible format selection with fallbacks
-      '-f', 'bestaudio/best',
+      // Let yt-dlp auto-select the best available format
       '--no-playlist',
       '--no-warnings',
       '--buffer-size', '16K',

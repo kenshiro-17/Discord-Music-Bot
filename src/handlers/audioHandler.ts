@@ -1,8 +1,5 @@
 import { getPlayer } from '../services/player';
-import { Song } from '../types';
 import { logger, logError } from '../utils/logger';
-import { getQueue } from './queueManager';
-import { GuildQueue } from 'discord-player';
 
 /**
  * Plays a song (or adds to queue) using discord-player
@@ -82,5 +79,17 @@ export async function seekTo(guildId: string, timestamp: number): Promise<void> 
   if (queue) {
     await queue.node.seek(timestamp * 1000);
     logger.info('Seeked', { guildId, timestamp });
+  }
+}
+
+/**
+ * Skips the current song
+ */
+export function skip(guildId: string): void {
+  const player = getPlayer();
+  const queue = player?.nodes.get(guildId);
+  if (queue) {
+    queue.node.skip();
+    logger.info('Skipped song', { guildId });
   }
 }

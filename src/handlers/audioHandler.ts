@@ -13,7 +13,7 @@ import { getQueue, skip, stop as stopQueue } from './queueManager';
 import { startInactivityTimer } from './voiceManager';
 import { createNowPlayingEmbed } from '../utils/embedBuilder';
 import { createNowPlayingButtons } from '../utils/buttonBuilder';
-import { Innertube, ClientType } from 'youtubei.js';
+import { Innertube } from 'youtubei.js';
 
 // YouTube.js client instance - lazy loaded
 let innertube: Innertube | null = null;
@@ -36,9 +36,8 @@ async function getInnertube(): Promise<Innertube> {
   innertubeInitializing = true;
   try {
     logger.info('Initializing YouTube.js client...');
+    // Use default WEB client - more stable for basic info
     innertube = await Innertube.create({
-      // Use iOS client which has fewer restrictions
-      client_type: ClientType.IOS,
       generate_session_locally: true,
     });
     logger.info('YouTube.js client initialized successfully');
@@ -154,8 +153,8 @@ async function createAudioResourceFromSong(song: Song, volume: number, seekTime:
     // Get YouTube.js client
     const yt = await getInnertube();
     
-    // Get video info using getInfo for full streaming support
-    const info = await yt.getInfo(videoId);
+    // Use getBasicInfo which is more stable and doesn't trigger the watch page parser
+    const info = await yt.getBasicInfo(videoId);
     
     logger.debug('Got video info', { 
       videoId, 
@@ -163,13 +162,38 @@ async function createAudioResourceFromSong(song: Song, volume: number, seekTime:
       duration: info.basic_info.duration,
     });
 
-    // Use YouTube.js built-in download which handles all the complexity
-    // This uses the proper client headers and session
+    // Get the best audio format
+    const format = info.chooseFormat({
+      type: 'audio',
+      quality: 'best',
+    });
+
+    if (!format) {
+      throw new Error('No audio format available');
+    }
+
+    logger.debug('Chosen format', {
+      videoId,
+      itag: format.itag,
+      mimeType: format.mime_type,
+      bitrate: format.bitrate,
+    });
+
+    // Decipher the stream URL
+    const streamUrl = await format.decipher(yt.session.player);
+    
+    if (!streamUrl) {
+      throw new Error('Failed to decipher stream URL');
+    }
+
+    logger.debug('Got deciphered URL', { videoId });
+
+    // Use YouTube.js built-in download with TV_EMBEDDED client
+    // This client is more permissive and works better from data centers
     const stream = await yt.download(videoId, {
       type: 'audio',
       quality: 'best',
-      // Use iOS client which has fewer restrictions
-      client: 'IOS',
+      client: 'TV_EMBEDDED',
     });
 
     logger.debug('Got download stream', { videoId });

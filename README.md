@@ -19,7 +19,9 @@
 
 ## Features
 
-- **Robust Playback**: Powered by `yt-dlp` for reliable streaming from YouTube (Videos, Playlists, Mixes).
+- **Robust Playback**: Powered by **discord-player** v6 with a multi-layered extraction strategy:
+  - **PoToken Injection**: Automatically generates "Proof of Token" to simulate a real browser session, bypassing YouTube's latest anti-bot blocks.
+  - **Fallback System**: Seamlessly switches between `play-dl`, `ytdl-core`, and `youtubei.js` to ensure music always plays.
 - **Unique Persona**: Responds in "Manglish" with the rough, authoritative tone of Thankan Chettan (inspired by the movie *Churuli*).
 - **Interactive Controls**:
   - **Buttons**: Play/Pause, Next, Previous, Stop, and Show Queue directly on the player.
@@ -79,10 +81,10 @@ You can also control the bot by typing directly in the music channel:
 |-----------|------------|
 | Language | TypeScript (Node.js 20) |
 | Framework | discord.js v14 |
-| Audio Engine | @discordjs/voice + libsodium-wrappers |
-| Streaming | yt-dlp (subprocess spawning) |
-| Metadata | yt-dlp (JSON dump) |
-| Deployment | Railway / Docker / Nixpacks |
+| Music Engine | **discord-player v6** |
+| Extraction | **play-dl** + **ytdl-core** |
+| Auth System | **PoToken Generator** (Puppeteer/Chromium) |
+| Deployment | Railway / Docker (Debian Slim) |
 
 ---
 
@@ -90,7 +92,8 @@ You can also control the bot by typing directly in the music channel:
 
 ### Prerequisites
 - Node.js >= 20.0.0
-- FFmpeg & Python 3 (Required for yt-dlp)
+- FFmpeg & Python 3 (Required for processing)
+- Chromium (Automatically installed in Docker)
 
 ### Railway Deployment (Recommended)
 
@@ -102,8 +105,8 @@ You can also control the bot by typing directly in the music channel:
    |----------|-------------|----------|
    | `DISCORD_TOKEN` | Your Bot Token | Yes |
    | `DISCORD_CLIENT_ID` | Your Bot Application ID | Yes |
-   | `YOUTUBE_COOKIES` | Netscape format cookies for age-restricted content | Optional |
-5. Deploy! The bot will auto-register slash commands on startup.
+   | `YOUTUBE_COOKIES` | Netscape format cookies content | Recommended |
+5. Deploy! The bot will generate a PoToken on startup and register commands.
 
 ### Docker
 
@@ -144,7 +147,7 @@ This bot implements several security measures:
 
 | Feature | Description |
 |---------|-------------|
-| Input Sanitization | Prevents flag injection in yt-dlp |
+| Input Sanitization | Prevents flag injection in shell commands |
 | Rate Limiting | Throttles text commands to prevent spam |
 | Mention Protection | Prevents mass pings (@everyone) in bot responses |
 | Non-Root User | Runs as `tc` user in Docker |
@@ -158,7 +161,8 @@ This bot implements several security measures:
 │   ├── commands/       # Slash commands
 │   ├── events/         # Discord event handlers
 │   ├── handlers/       # Audio, queue, voice managers
-│   ├── services/       # YouTube service
+│   ├── services/       # Player & PoToken services
+│   ├── extractors/     # Custom discord-player extractors
 │   ├── utils/          # Helpers, embeds, buttons
 │   └── index.ts        # Entry point
 ├── public/             # Static website assets

@@ -22,14 +22,21 @@ export async function initializePlayer(client: Client): Promise<Player> {
             // Enable PoToken generation (bypasses bot detection without needing Google account)
             generateWithPoToken: true,
 
-            // Use WEB client - required for PoToken and less restricted
+            // Use IOS client - tested and working for audio streams
             streamOptions: {
-                useClient: 'WEB',
+                useClient: 'IOS',
                 highWaterMark: 1 << 25 // 32MB buffer for smooth playback
             },
 
             // Don't fail on sign-in errors since we're not using OAuth
-            ignoreSignInErrors: true
+            ignoreSignInErrors: true,
+
+            // Fix for "Failed to extract signature decipher algorithm" error
+            // Use a known working player_id to bypass signature extraction issues
+            innertubeConfigRaw: {
+                po_token: undefined, // Let it generate automatically
+                player_id: '0004de42' // Known working player ID
+            }
         };
 
         // Add cookies if available (optional, can help with some restrictions)
@@ -51,14 +58,14 @@ export async function initializePlayer(client: Client): Promise<Player> {
 
         // Register YoutubeiExtractor
         await player.extractors.register(YoutubeiExtractor, extractorOptions);
-        logger.info('Registered: YoutubeiExtractor (PoToken + WEB client)');
+        logger.info('Registered: YoutubeiExtractor (IOS client + PoToken fallback)');
 
         // Log configuration summary
         logger.info('YouTube Extractor Configuration:', {
             poToken: true,
             cookies: !!process.env.YOUTUBE_COOKIES,
             proxy: !!process.env.YOUTUBE_PROXY,
-            client: 'WEB',
+            client: 'IOS',
             oauth: false
         });
 

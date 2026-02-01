@@ -48,6 +48,7 @@
     "sodium-native": "^5.0.10",
     "tweetnacl": "^1.0.3",
     "typescript": "^5.3.3",
+    "undici": "^6.6.2",
     "winston": "^3.11.0",
     "winston-daily-rotate-file": "^4.7.1",
     "youtube-po-token-generator": "^0.6.0",

@@ -1,150 +1,109 @@
-import { Player, BaseExtractor, Track } from 'discord-player';
+import { Player } from 'discord-player';
 import { Client } from 'discord.js';
 import { logger, logError } from '../utils/logger';
 import { YoutubeiExtractor } from 'discord-player-youtubei';
-import { DefaultExtractors } from '@discord-player/extractor';
-import play from 'play-dl';
-import SimpleYouTubeExtractor from '../extractors/SimpleYouTubeExtractor';
 
 // Singleton instance
 let player: Player | null = null;
 
-// Custom play-dl extractor
-class PlayDLExtractor extends BaseExtractor {
-    static identifier = 'com.discord-player.playdlextractor';
-
-    async validate(query: string) {
-        if (typeof query !== 'string') return false;
-        // Check if youtube
-        return query.includes('youtube.com') || query.includes('youtu.be');
-    }
-
-    async handle(query: string, _context: any) {
-        try {
-            if (play.yt_validate(query) === 'video') {
-                const info = await play.video_info(query);
-                
-                const track = new Track(this.context.player, {
-                    title: info.video_details.title || 'Unknown',
-                    url: info.video_details.url,
-                    duration: info.video_details.durationInSec.toString(),
-                    thumbnail: info.video_details.thumbnails[0]?.url,
-                    author: info.video_details.channel?.name || 'Unknown',
-                    views: info.video_details.views,
-                    source: 'youtube',
-                    raw: info,
-                    queryType: 'youtubeVideo'
-                });
-
-                return {
-                    playlist: null,
-                    tracks: [track]
-                };
-            }
-            // Add playlist support if needed
-        } catch (e) {
-            return { playlist: null, tracks: [] };
-        }
-        return { playlist: null, tracks: [] };
-    }
-
-    async stream(info: Track) {
-        const stream = await play.stream(info.url);
-        return stream.stream;
-    }
-}
-
 /**
- * Initialize discord-player
+ * Initialize discord-player with YoutubeiExtractor using PoToken (no OAuth required)
  */
 export async function initializePlayer(client: Client): Promise<Player> {
-  if (player) return player;
+    if (player) return player;
 
-  // Initialize play-dl with cookies if available
-  if (process.env.YOUTUBE_COOKIES) {
-      try {
-          await play.setToken({
-              youtube: {
-                  cookie: process.env.YOUTUBE_COOKIES
-              }
-          });
-          logger.info('Set play-dl YouTube cookies');
-      } catch (e) {
-          logger.warn('Failed to set play-dl cookies', { error: (e as Error).message });
-      }
-  }
+    player = new Player(client);
 
-  player = new Player(client);
-
-  try {
-    logger.info('Registering extractors...');
-
-    // 1. Load Default Extractors first (Standard priority)
-    await player.extractors.loadMulti(DefaultExtractors);
-    logger.info('Registered: DefaultExtractors');
-
-    // 2. Register Custom PlayDL Extractor (PRIORITY Fallback)
-    // play-dl handles 403s and format extraction better than ytdl-core currently
     try {
-        await player.extractors.register(PlayDLExtractor, {});
-        logger.info('Registered: PlayDLExtractor');
-    } catch (e) {
-        logger.error('Failed to register PlayDLExtractor', { error: (e as Error).message });
-    }
+        logger.info('Initializing YouTube extractor with PoToken...');
 
-    // 3. Register SimpleYouTubeExtractor (ytdl-core) - Secondary Fallback
-    try {
-        await player.extractors.register(SimpleYouTubeExtractor, {});
-        logger.info('Registered: SimpleYouTubeExtractor');
-    } catch (e) {
-        logger.error('Failed to register SimpleYouTubeExtractor', { error: (e as Error).message });
-    }
+        // Build extractor options - PoToken only, no OAuth
+        const extractorOptions: any = {
+            // Enable PoToken generation (bypasses bot detection without needing Google account)
+            generateWithPoToken: true,
 
-    // 4. Try to register YoutubeiExtractor (Highest Priority if it works)
-    try {
-        await player.extractors.register(YoutubeiExtractor, {
-            authentication: process.env.YOUTUBE_COOKIES || '',
+            // Use WEB client - required for PoToken and less restricted
             streamOptions: {
-                useClient: 'ANDROID'
+                useClient: 'WEB',
+                highWaterMark: 1 << 25 // 32MB buffer for smooth playback
+            },
+
+            // Don't fail on sign-in errors since we're not using OAuth
+            ignoreSignInErrors: true
+        };
+
+        // Add cookies if available (optional, can help with some restrictions)
+        if (process.env.YOUTUBE_COOKIES) {
+            extractorOptions.cookie = process.env.YOUTUBE_COOKIES;
+            logger.info('YouTube cookies configured');
+        }
+
+        // Add proxy if configured (for bypassing IP blocks)
+        if (process.env.YOUTUBE_PROXY) {
+            try {
+                const { ProxyAgent } = await import('undici');
+                extractorOptions.proxy = new ProxyAgent(process.env.YOUTUBE_PROXY);
+                logger.info('Proxy configured for YouTube requests');
+            } catch (e) {
+                logger.warn('Failed to configure proxy - undici may not be installed');
             }
+        }
+
+        // Register YoutubeiExtractor
+        await player.extractors.register(YoutubeiExtractor, extractorOptions);
+        logger.info('Registered: YoutubeiExtractor (PoToken + WEB client)');
+
+        // Log configuration summary
+        logger.info('YouTube Extractor Configuration:', {
+            poToken: true,
+            cookies: !!process.env.YOUTUBE_COOKIES,
+            proxy: !!process.env.YOUTUBE_PROXY,
+            client: 'WEB',
+            oauth: false
         });
-        logger.info('Registered: YoutubeiExtractor');
-    } catch (e) {
-        logger.error('Failed to register YoutubeiExtractor', { error: (e as Error).message });
+
+    } catch (error) {
+        logger.error('Failed to register YoutubeiExtractor', { error: (error as Error).message });
+        logger.error('YouTube playback may not work without a valid extractor');
     }
-    
-    // Debug: List all registered extractors
-    const registered = player.extractors.store.keys();
-    logger.info(`Total Registered Extractors: ${Array.from(registered).join(', ')}`);
 
-  } catch (error) {
-    logger.error('Failed to load extractors', { error: (error as Error).message });
-  }
+    // Event handling
+    player.events.on('playerStart', (queue: any, track: any) => {
+        logger.info('Player started', { guild: queue.guild.id, track: track.title });
+    });
 
-  // Event handling
-  player.events.on('playerStart', (queue: any, track: any) => {
-    logger.info('Player started', { guild: queue.guild.id, track: track.title });
-  });
+    player.events.on('error', (queue: any, error: Error) => {
+        logError(error, { context: 'Player Error', guild: queue.guild.id });
+    });
 
-  player.events.on('error', (queue: any, error: Error) => {
-    logError(error, { context: 'Player Error', guild: queue.guild.id });
-  });
+    player.events.on('playerError', (queue: any, error: Error, track: any) => {
+        logError(error, {
+            context: 'Player Playback Error',
+            guild: queue.guild.id,
+            track: track?.title || 'Unknown'
+        });
+    });
 
-  player.events.on('playerError', (queue: any, error: Error) => {
-    logError(error, { context: 'Player Connection Error', guild: queue.guild.id });
-  });
+    // Debug events
+    player.events.on('debug', (_queue: any, message: string) => {
+        logger.debug('Player Debug', { message });
+    });
 
-  // Debug events
-  player.events.on('debug', (_queue: any, message: string) => {
-    logger.debug('Player Debug', { message });
-  });
+    // Track extraction errors
+    player.events.on('playerSkip', (queue: any, track: any, reason: string) => {
+        logger.warn('Track skipped', {
+            guild: queue.guild.id,
+            track: track?.title || 'Unknown',
+            reason
+        });
+    });
 
-  return player;
+    return player;
 }
 
 /**
  * Get player instance
  */
 export function getPlayer(): Player | null {
-  return player;
+    return player;
 }

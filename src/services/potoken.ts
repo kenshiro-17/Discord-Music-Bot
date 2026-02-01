@@ -1,6 +1,5 @@
 import { generate } from 'youtube-po-token-generator';
 import { logger } from '../utils/logger';
-import play from 'play-dl';
 
 let poToken: string | null = null;
 let visitorData: string | null = null;

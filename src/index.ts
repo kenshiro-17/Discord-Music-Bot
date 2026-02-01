@@ -149,13 +149,10 @@ async function start(): Promise<void> {
     // Create client
     const client = createClient();
 
-    // Initialize discord-player
+    // Initialize discord-player with OAuth + PoToken
     const { initializePlayer } = await import('./services/player');
     await initializePlayer(client);
-
-    // Initialize PoToken service
-    const { startPoTokenService } = await import('./services/potoken');
-    startPoTokenService();
+    // Note: PoToken is now handled internally by YoutubeiExtractor
 
     // Client error logging
     client.on('error', (error) => logError(error, { context: 'Discord Client Error' }));

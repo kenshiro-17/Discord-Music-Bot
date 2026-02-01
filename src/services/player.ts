@@ -60,6 +60,10 @@ export async function initializePlayer(client: Client): Promise<Player> {
         await player.extractors.register(YoutubeiExtractor, extractorOptions);
         logger.info('Registered: YoutubeiExtractor (IOS client + PoToken fallback)');
 
+        // Debug: List all registered extractors
+        const registeredExtractors = Array.from(player.extractors.store.keys());
+        logger.info('Registered extractors:', { extractors: registeredExtractors });
+
         // Log configuration summary
         logger.info('YouTube Extractor Configuration:', {
             poToken: true,

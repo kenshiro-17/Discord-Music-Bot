@@ -9,14 +9,33 @@ export async function playSong(guildId: string, query: string, channel: any): Pr
   const player = getPlayer();
   if (!player) throw new Error('Player not initialized');
 
+  // Debug: Log available extractors
+  const extractors = Array.from(player.extractors.store.keys());
+  logger.info('Available extractors for play', { extractors, query });
+
+  // Clean YouTube URL - remove playlist parameters that might confuse extractors
+  let cleanQuery = query;
+  if (query.includes('youtube.com/watch') || query.includes('youtu.be')) {
+    try {
+      const url = new URL(query);
+      const videoId = url.searchParams.get('v') || url.pathname.slice(1);
+      if (videoId) {
+        // Use clean URL without playlist params
+        cleanQuery = `https://www.youtube.com/watch?v=${videoId}`;
+        if (cleanQuery !== query) {
+          logger.info('Cleaned YouTube URL', { original: query, clean: cleanQuery });
+        }
+      }
+    } catch (e) {
+      // Not a valid URL, use as-is
+    }
+  }
+
   try {
     // Strategy: Try standard play first
-    logger.info('Attempting to play', { query });
-    
-    // Explicitly define search engine for YouTube links to use our registered extractor
-    // const searchEngine = QueryType.AUTO; 
+    logger.info('Attempting to play', { query: cleanQuery });
 
-    const result = await player.play(channel, query, {
+    const result = await player.play(channel, cleanQuery, {
       nodeOptions: {
         metadata: { channel: channel }
       }
@@ -30,9 +49,9 @@ export async function playSong(guildId: string, query: string, channel: any): Pr
   } catch (error) {
     // Fallback: Try strict search then play
     logger.warn('Direct play failed, trying fallback search...', { error: (error as Error).message });
-    
+
     try {
-        const searchResult = await player.search(query, {
+        const searchResult = await player.search(cleanQuery, {
             requestedBy: undefined,
             searchEngine: QueryType.YOUTUBE_VIDEO
         });

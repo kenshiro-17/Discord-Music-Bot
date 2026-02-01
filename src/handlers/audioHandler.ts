@@ -1,6 +1,6 @@
 import { getPlayer } from '../services/player';
 import { logger, logError } from '../utils/logger';
-import { QueryType } from 'discord-player';
+import { SearchQueryType } from 'discord-player';
 
 /**
  * Plays a song (or adds to queue) using discord-player
@@ -32,8 +32,37 @@ export async function playSong(guildId: string, query: string, channel: any): Pr
   }
 
   try {
-    // Strategy: Try standard play first
-    logger.info('Attempting to play', { query: cleanQuery });
+    // Check if it's a YouTube URL
+    const isYouTubeUrl = cleanQuery.includes('youtube.com') || cleanQuery.includes('youtu.be');
+
+    if (isYouTubeUrl) {
+      // Force use of youtubei extractor for YouTube URLs
+      logger.info('Using explicit YouTube extractor', { query: cleanQuery });
+
+      // First search with explicit extractor
+      const searchResult = await player.search(cleanQuery, {
+        requestedBy: undefined,
+        searchEngine: 'ext:com.retrouser955.discord-player.discord-player-youtubei' as SearchQueryType
+      });
+
+      logger.info('Search result', {
+        found: searchResult.tracks.length > 0,
+        tracks: searchResult.tracks.length
+      });
+
+      if (searchResult && searchResult.tracks.length > 0) {
+        const { track } = await player.play(channel, searchResult.tracks[0], {
+          nodeOptions: { metadata: { channel: channel } }
+        });
+        logger.info('Played/Added song', { guildId, track: track.title });
+        return;
+      } else {
+        throw new Error('No tracks found from YouTube extractor');
+      }
+    }
+
+    // Non-YouTube: Try standard play
+    logger.info('Attempting standard play', { query: cleanQuery });
 
     const result = await player.play(channel, cleanQuery, {
       nodeOptions: {
@@ -47,13 +76,24 @@ export async function playSong(guildId: string, query: string, channel: any): Pr
 
     logger.info('Played/Added song', { guildId, track: result.track.title });
   } catch (error) {
-    // Fallback: Try strict search then play
-    logger.warn('Direct play failed, trying fallback search...', { error: (error as Error).message });
+    // Fallback: Try search by title
+    logger.warn('Direct play failed, trying title search...', { error: (error as Error).message });
 
     try {
-        const searchResult = await player.search(cleanQuery, {
+        // Extract video ID and search by it
+        let searchTerm = cleanQuery;
+        if (cleanQuery.includes('youtube.com') || cleanQuery.includes('youtu.be')) {
+          try {
+            const url = new URL(cleanQuery);
+            searchTerm = url.searchParams.get('v') || url.pathname.slice(1);
+          } catch (e) {
+            // Use as-is
+          }
+        }
+
+        const searchResult = await player.search(searchTerm, {
             requestedBy: undefined,
-            searchEngine: QueryType.YOUTUBE_VIDEO
+            searchEngine: 'ext:com.retrouser955.discord-player.discord-player-youtubei' as SearchQueryType
         });
 
         if (searchResult && searchResult.tracks.length > 0) {
